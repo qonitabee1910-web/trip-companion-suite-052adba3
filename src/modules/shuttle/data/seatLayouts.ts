@@ -220,6 +220,18 @@ function normalizeKey(key: VehicleKey): LayoutKey {
   return key as LayoutKey;
 }
 
+// ============================================================
+// Cloud-backed storage (replaces former localStorage helpers)
+// Reads remain sync (from in-memory cloudCache), writes fire-and-forget
+// to Supabase via cloudStore. Realtime keeps cache fresh across devices.
+// ============================================================
+import {
+  cloudCache,
+  persistSeatLayout,
+  clearSeatLayoutCloud,
+} from "./cloudStore";
+
+/** @deprecated kept for back-compat; no longer hits localStorage. */
 export const LAYOUT_STORAGE_KEY = (key: VehicleKey) =>
   `shuttle-seat-layout:${normalizeKey(key)}`;
 
@@ -240,45 +252,45 @@ export function saveLayoutToStorage(
       seatSize: config.seatSize,
     };
     if (includeImage) payload.image = config.image;
-    localStorage.setItem(LAYOUT_STORAGE_KEY(key), JSON.stringify(payload));
+    const layoutKey = normalizeKey(key);
+    // Optimistic local cache update so subsequent sync reads see it instantly
+    cloudCache.seatLayouts = { ...cloudCache.seatLayouts, [layoutKey]: payload };
+    void persistSeatLayout(layoutKey, payload).catch((err) => {
+      console.error("[seatLayouts] persist failed:", err);
+    });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[seatLayouts] saveLayoutToStorage failed:", err);
     return false;
   }
 }
 
 export function loadLayoutFromStorage(key: VehicleKey): SeatLayoutConfig | null {
-  try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY(key));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SeatLayoutConfig>;
-    const preset = getPresetByKey(key);
-    return {
-      image: parsed.image || preset.image,
-      aspect: parsed.aspect || preset.aspect,
-      driverSeat: parsed.driverSeat || preset.driverSeat,
-      seats: parsed.seats || preset.seats,
-      seatSize: parsed.seatSize ?? preset.seatSize,
-    };
-  } catch {
-    return null;
-  }
+  const layoutKey = normalizeKey(key);
+  const parsed = cloudCache.seatLayouts[layoutKey];
+  if (!parsed) return null;
+  const preset = getPresetByKey(key);
+  return {
+    image: parsed.image || preset.image,
+    aspect: parsed.aspect || preset.aspect,
+    driverSeat: parsed.driverSeat || preset.driverSeat,
+    seats: parsed.seats || preset.seats,
+    seatSize: parsed.seatSize ?? preset.seatSize,
+  };
 }
 
 export function clearLayoutFromStorage(key: VehicleKey) {
-  try {
-    localStorage.removeItem(LAYOUT_STORAGE_KEY(key));
-  } catch {
-    // ignore
-  }
+  const layoutKey = normalizeKey(key);
+  const next = { ...cloudCache.seatLayouts };
+  delete next[layoutKey];
+  cloudCache.seatLayouts = next;
+  void clearSeatLayoutCloud(layoutKey).catch((err) => {
+    console.error("[seatLayouts] clear failed:", err);
+  });
 }
 
 export function hasStoredLayout(key: VehicleKey): boolean {
-  try {
-    return !!localStorage.getItem(LAYOUT_STORAGE_KEY(key));
-  } catch {
-    return false;
-  }
+  return !!cloudCache.seatLayouts[normalizeKey(key)];
 }
 
 // Resolver utama untuk SeatMap user. Bisa dipanggil dengan service tier opsional.
