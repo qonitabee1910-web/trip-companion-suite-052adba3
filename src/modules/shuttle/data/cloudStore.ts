@@ -164,6 +164,18 @@ async function hydrate() {
       });
     }
 
+    // Seat layouts: build map keyed by LayoutKey ("HIACE_REGULER" etc.)
+    if (layoutRes.data) {
+      const map: Record<string, Partial<SeatLayoutConfig>> = {};
+      layoutRes.data.forEach((l) => {
+        const tierSuffix =
+          l.tier === "executive" ? "EXEC" : l.tier === "semi-executive" ? "SEMI" : "REGULER";
+        const key = `${(l.vehicle_id || "").toUpperCase()}_${tierSuffix}`;
+        map[key] = (l.layout || {}) as Partial<SeatLayoutConfig>;
+      });
+      cache.seatLayouts = map;
+    }
+
     if (timesRes.data) {
       cache.departTimes = timesRes.data.map((t) => t.time);
     }
