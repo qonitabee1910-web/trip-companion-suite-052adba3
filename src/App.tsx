@@ -36,6 +36,8 @@ import AdminSeatEditor from "./modules/admin/pages/AdminSeatEditor";
 import AdminShuttleContent from "./modules/admin/pages/AdminShuttleContent";
 import AdminInventory from "./modules/admin/pages/AdminInventory";
 
+import { CloudGate } from "./shared/components/CloudGate";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -44,6 +46,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <CloudGate>
         <Routes>
           <Route path="/" element={<Home />} />
 
@@ -82,6 +85,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </CloudGate>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
