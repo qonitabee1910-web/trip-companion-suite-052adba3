@@ -1,134 +1,35 @@
+/**
+ * Hotel data — sourced from cloudCache (Supabase). Re-exports the same `HOTELS`
+ * constant + `POPULAR_CITIES` so existing imports continue to work; values are
+ * filled after hydrate().
+ */
+import { cloudCache } from "@/modules/shuttle/data/cloudStore";
 import type { Hotel } from "../types";
 
-export const HOTELS: Hotel[] = [
-  {
-    id: "h1",
-    name: "Bali Sunset Resort & Spa",
-    city: "Bali",
-    address: "Jl. Pantai Seminyak No. 12, Seminyak",
-    stars: 5,
-    rating: 4.8,
-    reviewCount: 1284,
-    pricePerNight: 850000,
-    originalPrice: 1200000,
-    images: [
-      "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200",
-      "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200",
-      "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200",
-    ],
-    amenities: ["WiFi Gratis", "Kolam Renang", "Sarapan", "Parkir", "AC", "Spa"],
-    description:
-      "Resort tepi pantai eksklusif dengan pemandangan sunset Seminyak. Dilengkapi spa, infinity pool, dan restoran fine dining.",
-    lat: -8.6905,
-    lng: 115.1729,
-    rooms: [
-      { id: "r1", name: "Deluxe Room", capacity: 2, bed: "1 Queen", price: 850000, breakfast: true, refundable: true },
-      { id: "r2", name: "Ocean Suite", capacity: 3, bed: "1 King", price: 1450000, breakfast: true, refundable: true },
-    ],
-  },
-  {
-    id: "h2",
-    name: "Yogya Heritage Hotel",
-    city: "Yogyakarta",
-    address: "Jl. Malioboro No. 45, Yogyakarta",
-    stars: 4,
-    rating: 4.6,
-    reviewCount: 892,
-    pricePerNight: 420000,
-    originalPrice: 580000,
-    images: [
-      "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200",
-      "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1200",
-    ],
-    amenities: ["WiFi Gratis", "Sarapan", "Parkir", "AC"],
-    description: "Hotel butik bergaya kolonial Jawa di jantung Malioboro, dekat dengan kuliner dan oleh-oleh khas Yogya.",
-    lat: -7.7956,
-    lng: 110.3695,
-    rooms: [
-      { id: "r1", name: "Standard Room", capacity: 2, bed: "1 Double", price: 420000, breakfast: true, refundable: false },
-      { id: "r2", name: "Family Room", capacity: 4, bed: "2 Double", price: 720000, breakfast: true, refundable: true },
-    ],
-  },
-  {
-    id: "h3",
-    name: "Bandung Highland Inn",
-    city: "Bandung",
-    address: "Jl. Raya Lembang KM 15, Bandung",
-    stars: 4,
-    rating: 4.7,
-    reviewCount: 654,
-    pricePerNight: 560000,
-    images: [
-      "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200",
-      "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200",
-    ],
-    amenities: ["WiFi Gratis", "Sarapan", "Parkir", "Pemandangan Gunung"],
-    description: "Hotel pegunungan dengan udara sejuk dan view kebun teh, cocok untuk liburan keluarga.",
-    lat: -6.8118,
-    lng: 107.6186,
-    rooms: [
-      { id: "r1", name: "Mountain View Room", capacity: 2, bed: "1 Queen", price: 560000, breakfast: true, refundable: true },
-    ],
-  },
-  {
-    id: "h4",
-    name: "Jakarta Skyline Suite",
-    city: "Jakarta",
-    address: "Jl. Jend. Sudirman Kav 52, Jakarta",
-    stars: 5,
-    rating: 4.9,
-    reviewCount: 2105,
-    pricePerNight: 1250000,
-    originalPrice: 1650000,
-    images: [
-      "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1200",
-      "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200",
-    ],
-    amenities: ["WiFi Gratis", "Kolam Renang", "Sarapan", "Gym", "AC", "Spa", "Bar"],
-    description: "Hotel mewah di pusat bisnis Sudirman dengan pemandangan skyline Jakarta dari kamar di lantai atas.",
-    lat: -6.2088,
-    lng: 106.8221,
-    rooms: [
-      { id: "r1", name: "Executive Suite", capacity: 2, bed: "1 King", price: 1250000, breakfast: true, refundable: true },
-      { id: "r2", name: "Presidential Suite", capacity: 4, bed: "1 King + 2 Single", price: 3500000, breakfast: true, refundable: true },
-    ],
-  },
-  {
-    id: "h5",
-    name: "Surabaya Business Hotel",
-    city: "Surabaya",
-    address: "Jl. Tunjungan No. 88, Surabaya",
-    stars: 4,
-    rating: 4.5,
-    reviewCount: 478,
-    pricePerNight: 480000,
-    images: ["https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200"],
-    amenities: ["WiFi Gratis", "Sarapan", "Gym", "AC"],
-    description: "Hotel bisnis di pusat kota Surabaya, dekat dengan pusat perbelanjaan dan kuliner.",
-    lat: -7.2575,
-    lng: 112.7521,
-    rooms: [
-      { id: "r1", name: "Superior Room", capacity: 2, bed: "1 Queen", price: 480000, breakfast: true, refundable: true },
-    ],
-  },
-  {
-    id: "h6",
-    name: "Bali Cozy Homestay",
-    city: "Bali",
-    address: "Jl. Hanoman, Ubud",
-    stars: 3,
-    rating: 4.4,
-    reviewCount: 312,
-    pricePerNight: 280000,
-    images: ["https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200"],
-    amenities: ["WiFi Gratis", "Sarapan", "Parkir"],
-    description: "Homestay nyaman di tengah Ubud dengan suasana tradisional Bali.",
-    lat: -8.5069,
-    lng: 115.2625,
-    rooms: [
-      { id: "r1", name: "Standard Room", capacity: 2, bed: "1 Double", price: 280000, breakfast: true, refundable: false },
-    ],
-  },
-];
+// Proxy that always returns the latest array from cache.
+// Existing code does `HOTELS.find(...)` — the find call evaluates each access,
+// so we expose getters via a Proxy-like object.
+function makeHotelsProxy(): Hotel[] {
+  return new Proxy([] as Hotel[], {
+    get(_, prop) {
+      const arr = cloudCache.hotels;
+      const v = (arr as any)[prop];
+      return typeof v === "function" ? v.bind(arr) : v;
+    },
+    has(_, prop) {
+      return prop in cloudCache.hotels;
+    },
+  });
+}
+
+export const HOTELS: Hotel[] = makeHotelsProxy();
 
 export const POPULAR_CITIES = ["Bali", "Yogyakarta", "Bandung", "Jakarta", "Surabaya", "Lombok", "Malang"];
+
+export function getHotels(): Hotel[] {
+  return cloudCache.hotels;
+}
+
+export function getHotelById(id: string): Hotel | undefined {
+  return cloudCache.hotels.find((h) => h.id === id);
+}
