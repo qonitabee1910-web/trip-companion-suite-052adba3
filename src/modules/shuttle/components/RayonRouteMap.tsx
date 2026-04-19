@@ -93,6 +93,10 @@ export const RayonRouteMap = ({
   );
 
   const polyline: [number, number][] = points.map((p) => [p.lat, p.lng]);
+  const selectedPoint = points.find((p) => p.code === selectedCode);
+  const selectedTarget: [number, number] | null = selectedPoint
+    ? [selectedPoint.lat, selectedPoint.lng]
+    : null;
 
   if (points.length === 0) {
     return (
