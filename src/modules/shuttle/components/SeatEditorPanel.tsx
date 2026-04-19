@@ -109,8 +109,23 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
   const service = services.find((s) => s.tier === tier);
-  const finalPrice = vehicle && service ? calcPrice(vehicle, service) : 0;
-  const capacityMismatch = !!vehicle && config.seats.length !== vehicle.totalSeats;
+
+  // Harga dasar per (vehicle × tier) — diedit di sini, persist ke vehicles store.
+  const initialTierPrice = vehicle?.tierPrices?.[tier] ?? vehicle?.basePrice ?? 0;
+  const [tierPrice, setTierPrice] = useState<number>(initialTierPrice);
+
+  // Sync price field saat ganti vehicle/tier
+  useEffect(() => {
+    const v = getVehicleTypesAll().find((x) => x.id === vehicleId);
+    setTierPrice(v?.tierPrices?.[tier] ?? v?.basePrice ?? 0);
+  }, [vehicleId, tier]);
+
+  // Preview total harga pakai tierPrice yang sedang diedit (override sementara)
+  const previewVehicle: VehicleType | undefined = vehicle
+    ? { ...vehicle, tierPrices: { ...(vehicle.tierPrices ?? {}), [tier]: tierPrice } }
+    : undefined;
+  const finalPrice = previewVehicle && service ? calcPrice(previewVehicle, service) : 0;
+  const capacity = config.seats.length;
 
   const resetToPreset = () => {
     const p = LAYOUT_PRESETS[layoutKey];
@@ -121,12 +136,24 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
 
   const saveLayout = () => {
     const ok = saveLayoutToStorage(layoutKey, config, !!customImage);
-    if (ok) {
-      setHasSaved(true);
-      toast.success(`Layout ${LAYOUT_LABELS[layoutKey]} disimpan — tampilan user diperbarui`);
-    } else {
+    if (!ok) {
       toast.error("Gagal menyimpan (storage penuh?)");
+      return;
     }
+    setHasSaved(true);
+
+    // Persist tierPrice ke vehicles store
+    if (vehicle) {
+      const all = getVehicleTypesAll();
+      const next = all.map((v) =>
+        v.id === vehicleId
+          ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
+          : v,
+      );
+      saveVehicleTypes(next);
+    }
+
+    toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan — kapasitas ${capacity} kursi, harga Rp${tierPrice.toLocaleString("id-ID")}`);
   };
 
   const clearSaved = () => {
@@ -134,24 +161,6 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     setHasSaved(false);
     resetToPreset();
     toast.success(`Simpanan ${LAYOUT_LABELS[layoutKey]} dihapus, kembali ke default`);
-  };
-
-  const syncToCapacity = () => {
-    if (!vehicle) return;
-    const target = vehicle.totalSeats;
-    setConfig((c) => {
-      let seats = [...c.seats];
-      if (seats.length > target) {
-        seats = seats.slice(0, target);
-      } else {
-        for (let i = seats.length; i < target; i++) {
-          seats.push({ num: i + 1, x: 30 + ((i % 3) * 20), y: 90 });
-        }
-      }
-      seats = seats.map((s, i) => ({ ...s, num: i + 1 }));
-      return { ...c, seats };
-    });
-    toast.success(`Disinkronkan ke ${target} kursi. Jangan lupa Simpan.`);
   };
 
   const updateSeat = (num: number, x: number, y: number) => {
