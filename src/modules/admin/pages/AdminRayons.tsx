@@ -417,7 +417,7 @@ const AdminRayons = () => {
         </Card>
       </div>
 
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) { setEditing(null); setActiveCaptureCode(null); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing && editing.index >= 0 ? `Edit ${editing.data.name || "Rayon"}` : "Tambah Rayon"}</DialogTitle>
