@@ -3,6 +3,7 @@ import {
   DEPART_TIMES as DEFAULT_TIMES,
   DEFAULT_DESTINATION,
   DEFAULT_CONTENT,
+  migrateRayon,
   type Rayon,
   type Destination,
   type ShuttleContent,
@@ -44,7 +45,8 @@ function write<T>(key: string, value: T) {
 
 // ---------- Rayons ----------
 export function getRayons(): Rayon[] {
-  return read<Rayon[]>(KEY.rayons, DEFAULT_RAYONS);
+  const raw = read<unknown[]>(KEY.rayons, DEFAULT_RAYONS as unknown as unknown[]);
+  return (raw as Parameters<typeof migrateRayon>[0][]).map(migrateRayon);
 }
 export function saveRayons(rayons: Rayon[]) {
   write(KEY.rayons, rayons);
