@@ -122,6 +122,7 @@ export const RayonRouteMap = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds points={polyline} />
+        <PanToSelected target={selectedTarget} />
         <Polyline
           positions={polyline}
           pathOptions={{ color: "hsl(217 91% 60%)", weight: 4, opacity: 0.85 }}
