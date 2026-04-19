@@ -133,7 +133,7 @@ const ShuttleRayon = () => {
                   >
                     <div className="font-medium leading-tight truncate">{p.name}</div>
                     <div className={`text-[10px] mt-0.5 flex items-center gap-1 ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                      <Clock className="h-2.5 w-2.5" /> {p.time || "—"}
+                      <Clock className="h-2.5 w-2.5" /> {shifted.get(p.code) || p.time || "—"}
                     </div>
                   </button>
                 );
