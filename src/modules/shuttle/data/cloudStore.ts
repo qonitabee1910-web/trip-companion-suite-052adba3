@@ -43,6 +43,8 @@ interface Cache {
   hotels: Hotel[];
   /** Map of LayoutKey (e.g. "HIACE_REGULER") -> stored layout payload (without image baked-in unless saved that way). */
   seatLayouts: Record<string, Partial<SeatLayoutConfig>>;
+  /** Map of LayoutKey -> ISO timestamp of last update from cloud. */
+  seatLayoutTimestamps: Record<string, string>;
   hydrated: boolean;
 }
 
@@ -67,6 +69,7 @@ const cache: Cache = {
   seatBlocks: [],
   hotels: [],
   seatLayouts: {},
+  seatLayoutTimestamps: {},
   hydrated: false,
 };
 
@@ -167,13 +170,16 @@ async function hydrate() {
     // Seat layouts: build map keyed by LayoutKey ("HIACE_REGULER" etc.)
     if (layoutRes.data) {
       const map: Record<string, Partial<SeatLayoutConfig>> = {};
+      const ts: Record<string, string> = {};
       layoutRes.data.forEach((l) => {
         const tierSuffix =
           l.tier === "executive" ? "EXEC" : l.tier === "semi-executive" ? "SEMI" : "REGULER";
         const key = `${(l.vehicle_id || "").toUpperCase()}_${tierSuffix}`;
         map[key] = (l.layout || {}) as Partial<SeatLayoutConfig>;
+        ts[key] = l.updated_at;
       });
       cache.seatLayouts = map;
+      cache.seatLayoutTimestamps = ts;
     }
 
     if (timesRes.data) {
@@ -331,17 +337,113 @@ function setupRealtime() {
         .then(({ data }) => {
           if (data) {
             const map: Record<string, Partial<SeatLayoutConfig>> = {};
+            const ts: Record<string, string> = {};
             data.forEach((l) => {
               const tierSuffix =
                 l.tier === "executive" ? "EXEC" : l.tier === "semi-executive" ? "SEMI" : "REGULER";
               const key = `${(l.vehicle_id || "").toUpperCase()}_${tierSuffix}`;
               map[key] = (l.layout || {}) as Partial<SeatLayoutConfig>;
+              ts[key] = l.updated_at;
             });
             cache.seatLayouts = map;
+            cache.seatLayoutTimestamps = ts;
             notify();
           }
         });
     })
+    .subscribe();
+
+  // ============== Master data realtime (live cross-device sync) ==============
+  const refetchDepartTimes = async () => {
+    const { data } = await supabase.from("depart_times").select("*").order("sort_order");
+    if (data) {
+      cache.departTimes = data.map((t) => t.time);
+      notify();
+    }
+  };
+  const refetchRayonsAndPickups = async () => {
+    const [rayonRes, ppRes] = await Promise.all([
+      supabase.from("rayons").select("*").order("sort_order"),
+      supabase.from("pickup_points").select("*").order("sort_order"),
+    ]);
+    if (rayonRes.data) {
+      const ppByRayon = new Map<string, PickupPoint[]>();
+      (ppRes.data || []).forEach((p) => {
+        const arr = ppByRayon.get(p.rayon_id) || [];
+        arr.push({
+          code: p.code,
+          name: p.name,
+          time: p.time,
+          distanceToNext: p.distance_to_next,
+          lat: p.lat ?? undefined,
+          lng: p.lng ?? undefined,
+        });
+        ppByRayon.set(p.rayon_id, arr);
+      });
+      cache.rayons = rayonRes.data.map((r) => ({
+        id: r.id,
+        name: r.name,
+        area: r.area,
+        color: r.color,
+        estimateMin: r.estimate_min,
+        surcharge: r.surcharge,
+        farePerKm: r.fare_per_km,
+        perPickupFare: r.per_pickup_fare,
+        pickupPoints: ppByRayon.get(r.id) || [],
+      }));
+      notify();
+    }
+  };
+  const refetchServices = async () => {
+    const { data } = await supabase.from("services").select("*").order("sort_order");
+    if (data) {
+      cache.services = data.map((s) => ({
+        tier: s.tier as ServiceTier,
+        label: s.label,
+        description: s.description,
+        priceMultiplier: Number(s.price_multiplier),
+        features: s.features || [],
+        active: s.active,
+      }));
+      notify();
+    }
+  };
+  const refetchVehicles = async () => {
+    const { data } = await supabase.from("vehicle_types").select("*").order("sort_order");
+    if (data) {
+      cache.vehicles = data.map((v) => {
+        const existing = cache.vehicles.find((x) => x.id === v.id);
+        return {
+          id: v.id as VehicleTypeId,
+          label: v.label,
+          vehicleName: v.vehicle_name,
+          description: v.description,
+          active: v.active,
+          tierPrices: (v.tier_prices || {}) as Partial<Record<ServiceTier, number>>,
+          totalSeats: existing?.totalSeats ?? 0,
+        };
+      });
+      notify();
+    }
+  };
+  const refetchSettings = async () => {
+    const { data } = await supabase.from("shuttle_settings").select("*");
+    if (data) {
+      const dest = data.find((s) => s.key === "destination");
+      const cnt = data.find((s) => s.key === "content");
+      if (dest) cache.destination = { ...DEFAULT_DESTINATION, ...(dest.value as object) };
+      if (cnt) cache.content = { ...DEFAULT_CONTENT, ...(cnt.value as object) };
+      notify();
+    }
+  };
+
+  supabase.channel("cloud-store-master")
+    .on("postgres_changes", { event: "*", schema: "public", table: "depart_times" }, refetchDepartTimes)
+    .on("postgres_changes", { event: "*", schema: "public", table: "rayons" }, refetchRayonsAndPickups)
+    .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, refetchRayonsAndPickups)
+    .on("postgres_changes", { event: "*", schema: "public", table: "services" }, refetchServices)
+    .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_types" }, refetchVehicles)
+    .on("postgres_changes", { event: "*", schema: "public", table: "shuttle_settings" }, refetchSettings)
     .subscribe();
 }
 
@@ -577,14 +679,22 @@ export async function persistSeatLayout(
     .delete()
     .eq("vehicle_id", vehicleId)
     .eq("tier", tier);
-  const { error } = await supabase.from("seat_layouts").insert({
-    vehicle_id: vehicleId,
-    tier,
-    layout: payload as any,
-    capacity,
-  });
+  const { data, error } = await supabase
+    .from("seat_layouts")
+    .insert({
+      vehicle_id: vehicleId,
+      tier,
+      layout: payload as any,
+      capacity,
+    })
+    .select()
+    .single();
   if (error) throw error;
   cache.seatLayouts = { ...cache.seatLayouts, [layoutKey]: payload };
+  cache.seatLayoutTimestamps = {
+    ...cache.seatLayoutTimestamps,
+    [layoutKey]: data?.updated_at ?? new Date().toISOString(),
+  };
   notify();
 }
 
@@ -598,5 +708,47 @@ export async function clearSeatLayoutCloud(layoutKey: string): Promise<void> {
   const next = { ...cache.seatLayouts };
   delete next[layoutKey];
   cache.seatLayouts = next;
+  const nextTs = { ...cache.seatLayoutTimestamps };
+  delete nextTs[layoutKey];
+  cache.seatLayoutTimestamps = nextTs;
   notify();
+}
+
+// ============== Storage: seat layout images ==============
+const SEAT_LAYOUT_BUCKET = "seat-layout-images";
+
+/**
+ * Upload a seat layout diagram image to Storage.
+ * Returns the public URL on success.
+ * Path format: {layoutKey-lower}-{timestamp}.{ext}
+ */
+export async function uploadSeatLayoutImage(
+  layoutKey: string,
+  file: File,
+): Promise<string> {
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `${layoutKey.toLowerCase()}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from(SEAT_LAYOUT_BUCKET)
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type || `image/${ext}`,
+      cacheControl: "3600",
+    });
+  if (error) throw error;
+  const { data } = supabase.storage.from(SEAT_LAYOUT_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/** Best-effort delete an image from the bucket given its public URL. */
+export async function deleteSeatLayoutImageByUrl(url: string): Promise<void> {
+  try {
+    const marker = `/${SEAT_LAYOUT_BUCKET}/`;
+    const idx = url.indexOf(marker);
+    if (idx < 0) return;
+    const path = url.slice(idx + marker.length);
+    await supabase.storage.from(SEAT_LAYOUT_BUCKET).remove([path]);
+  } catch (err) {
+    console.warn("[cloudStore] deleteSeatLayoutImageByUrl failed:", err);
+  }
 }
