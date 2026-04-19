@@ -25,7 +25,7 @@ const DriverActiveRide = () => {
     return () => navigator.geolocation.clearWatch(w);
   }, []);
 
-  const update = async (patch: Record<string, any>) => {
+  const update = async (patch: Parameters<ReturnType<typeof supabase.from<"rides">>["update"]>[0]) => {
     if (!id) return;
     const { error } = await supabase.from("rides").update(patch).eq("id", id);
     if (error) toast({ title: "Gagal update", description: error.message, variant: "destructive" });
