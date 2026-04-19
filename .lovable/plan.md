@@ -1,126 +1,81 @@
+# Plan: Seed Data Rayon + Auto Fare Calculation by Distance
 
-# Plan: Sentralisasi Seluruh User Shuttle Logic ke Admin Dashboard
+## Analisis Data Gambar
 
-## Analisis User Flow Saat Ini
+Tiap rayon punya urutan titik jemput dengan: **nama**, **jam pickup**, dan **jarak (meter) ke titik berikutnya**. Titik terakhir adalah destinasi (KNO/Kualanamu). Total jarak = jumlah semua segmen → jadi basis fare per-km.
 
-**Flow user (5 langkah):**
-```
-ShuttleHome → ShuttleRayon → ShuttleService → ShuttleVehicle → ShuttleBooking
-   (rayon)     (pickup,jam,    (tier)         (kendaraan)      (pilih kursi
-                tgl, pax)                                       + form + bayar)
-```
+**Seed (dari foto):**
 
-**Yang sudah bisa di-admin:**
-- ✅ Rayon, titik jemput, jam berangkat (`AdminRayons`)
-- ✅ Service tier + harga multiplier (`AdminServices`)
-- ✅ Kendaraan + kapasitas + base price (`AdminVehicles`)
-- ✅ Seat layout per kombinasi (`AdminSeatEditor`)
-- ✅ Booking (`AdminBookings`) + Scan QR (`AdminScan`)
+- **Rayon A** — Medan Pusat — 14 titik + KNO. Total 58.250 m (~58 km). J1 Hermes Palace 06.00 → … → KNO 08.14.
+- **Rayon B** — Medan Barat — 18 titik + KNO. Total 65.520 m. J1 Cambridge 06.00 → … → KNO 08.25.
+- **Rayon C** — Medan Timur — 12 titik + Tol KNO. Total 31.400 m. J1 Adi Mulia 06.00 → … → Tol KNO 07.30.
+- **Rayon D** — Medan Polonia — 17 titik + Kualanamu. Total 30.000 m. J1 Hotel TD Pardede 06.00 → … → Kualanamu 08.32.
 
-**Yang BELUM bisa di-admin (hardcoded di code):**
-1. **DESTINATION** (`KNO Airport`) — hardcoded `rayons.ts`. Tidak bisa ganti tujuan/multi-tujuan.
-2. **Hero & branding ShuttleHome** — judul, subtitle, gradient.
-3. **Mock occupied seats** — `mockSeatsAvailable()` deterministik per kombinasi, tidak baca booking riil. Akibatnya admin tidak punya kontrol kursi yang sudah terjual untuk slot tertentu.
-4. **Kapasitas pax max** (hardcoded 12 di stepper `ShuttleRayon`).
-5. **Service yang dinonaktifkan/vehicle dihapus** masih dipakai user — belum ada flag `active` & filter.
-6. **Tarif final** — multiplier × base, tidak ada per-rayon surcharge / promo.
-7. **Cara pesan / instruksi** copy di footer ShuttleHome — hardcoded.
+## Perubahan Skema
 
-**Masalah UX admin saat ini:**
-- 7 menu sidebar terasa flat — tidak ada grouping logis (Setup vs Operasional vs Konten).
-- Dashboard hanya angka — tidak ada quick action ke setup yang belum lengkap.
-- Tidak ada indikator "data belum sinkron" (mis. seat layout mismatch capacity).
+Ubah `pickupPoints: string[]` jadi `pickupPoints: PickupPoint[]`:
 
----
-
-## Solusi: Restrukturisasi + Lengkapi Coverage Admin
-
-### A. Reorganisasi Sidebar dengan Grouping
-Pisah jadi 3 grup biar tidak membingungkan:
-
-```
-KONTEN & BRANDING
-  • Beranda Shuttle      (NEW — atur DESTINATION + hero copy)
-
-SETUP LAYANAN
-  • Rayon & Jam
-  • Service              (+toggle aktif)
-  • Kendaraan            (+toggle aktif)
-  • Seat Layout
-
-OPERASIONAL
-  • Dashboard
-  • Booking
-  • Scan Tiket
-  • Inventori Kursi      (NEW — kelola occupied per slot)
+```ts
+interface PickupPoint {
+  code: string;       // J1, J2…
+  name: string;       // Hermes Palace
+  time: string;       // "06:00"
+  distanceToNext: number; // meters; 0 untuk titik terakhir sebelum destinasi
+}
 ```
 
-### B. Halaman Baru: `AdminShuttleContent`
-Satu halaman atur konten user-facing:
-- **Tujuan (DESTINATION)**: code, nama panjang, nama pendek. Disimpan di `shuttle-admin:destination`.
-- **Hero ShuttleHome**: judul (default "Shuttle ke KNO"), subtitle, label tujuan tetap.
-- **Footer instruksi**: text "Cara pesan: ..." editable.
-- **Pax max** per booking (default 12).
-- **Live preview** di samping form — render mini-card mirip ShuttleHome.
+Tambah field `totalDistanceM: number` (auto-compute) dan `farePerKm: number` (default 1.500 Rp/km, editable). Backward-compat: helper `getPickupNames(rayon)` mengembalikan `string[]` agar UI lama tetap jalan saat migrasi.
 
-Refactor: `DESTINATION` di `rayons.ts` jadi `getDestination()` yang baca dari repo, fallback default. Update `ShuttleHome/Rayon/Service/Vehicle/Booking` untuk pakai `getDestination()`.
+## Fare Calculation
 
-### C. Halaman Baru: `AdminInventory` (Kelola Kursi Terjual per Slot)
-Menggantikan `mockSeatsAvailable()` random:
-- Pilih **tanggal + jam + rayon + vehicle + service** → tampilkan SeatMap interaktif.
-- Admin bisa **block/unblock kursi manual** (mis. untuk maintenance, VIP, atau penjualan offline).
-- Kursi yang sudah dipesan via booking otomatis tampil terisi (warna beda, tidak bisa diunblock).
-- Disimpan di `shuttle-admin:inventory` dengan key `{date}_{time}_{rayonId}_{vehicleId}_{tier}` → array nomor kursi diblok.
+Rumus baru pricing:
 
-Refactor `ShuttleBooking.tsx`: ganti `mockSeatsAvailable` & `occupiedSeats` dengan `getOccupiedSeats(slot)` yang gabung **booking riil dari `getBookings()` (filter slot match)** + **manual block dari inventory**.
+```
+finalfare = (totalDistanceM / 1000) × service.priceMultiplier
+```
 
-### D. Toggle Aktif untuk Service & Vehicle
-- Tambah field `active: boolean` di `ServiceConfig` & `VehicleType` (default `true`).
-- `AdminServices` & `AdminVehicles` tambah toggle switch per row.
-- `ShuttleService` & `ShuttleVehicle` filter `.filter(s => s.active !== false)`.
-- Jika hanya 1 service aktif → auto-skip halaman service. Sama untuk vehicle.
+Optional: **fare per pickup point** — hitung sisa jarak dari titik jemput user sampai destinasi (jadi yang naik di titik terakhir bayar lebih murah). Default OFF; toggle "Per-pickup fare" di admin.
 
-### E. Per-Rayon Surcharge (Opsional, Tarif Lebih Realistis)
-Tambah `surcharge: number` (default 0) di `Rayon`. Edit di `AdminRayons`. `calcPrice` jadi `(base × multiplier) + rayon.surcharge`. Update `ShuttleService` & `ShuttleVehicle` & `ShuttleBooking` untuk passing rayon ke `calcPrice`.
+## Admin UI (`/admin/shuttle/rayons`)
 
-### F. Dashboard Admin Diperkaya
-- **Setup completeness card**: Checklist (Destination ✓, ≥1 Rayon ✓, ≥1 Service aktif ✓, ≥1 Vehicle aktif ✓, semua seat layout match capacity ✓). Jika belum lengkap → CTA langsung ke halaman setup.
-- **Quick actions**: tombol "Tambah Rayon", "Atur Konten", "Buka Editor Kursi".
-- **Mismatch warning**: jumlah kombinasi vehicle×service yang seat layoutnya tidak sinkron capacity.
+Restrukturisasi dialog edit rayon jadi 3 section:
 
-### G. Improve Flow User (Auto-skip & Validasi)
-- Jika hanya 1 service aktif → `ShuttleRayon` tombol "Lanjut" langsung lompat ke `/shuttle/vehicle`.
-- Jika hanya 1 vehicle aktif → `ShuttleService` langsung redirect ke `/shuttle/book`.
-- Tambah **breadcrumb stepper** di header tiap halaman shuttle: `Rayon › Jadwal › Service › Kendaraan › Kursi` biar user tahu ada di langkah mana.
+1. **Info Dasar** — ID, Nama, Area, Estimasi, Surcharge (existing).
+2. **Tarif per KM** — input `farePerKm` + toggle "Hitung fare per titik jemput" + preview live: "Total jarak: 58,3 km × Rp1.500 = Rp87.450 → dibulatkan Rp87.000".
+3. **Titik Jemput & Jarak** — tabel inline dengan kolom: drag-handle, Kode (J1), Nama, Jam, Jarak ke Berikutnya (m), Aksi. Tombol **Tambah Titik** di bawah. Total jarak auto-update di footer tabel. Validasi: titik terakhir = destinasi (auto-add jika tidak ada).
 
----
+Tambahan UX:
 
-## File Changes Ringkas
+- Tombol **"Seed dari PYU-GO"** di header → satu klik isi 4 rayon dari foto (overwrite confirm dialog).
+- Card ringkasan di atas table list: total titik, total jarak gabungan, rata-rata fare per rayon.
+- Kolom baru di table list: **Total Jarak (km)** & **Estimasi Fare** (untuk vehicle reguler termurah, sebagai sanity check).
 
-**NEW:**
-- `src/modules/admin/pages/AdminShuttleContent.tsx` — atur DESTINATION + hero + footer copy + pax max
-- `src/modules/admin/pages/AdminInventory.tsx` — kelola kursi terjual/blocked per slot
-- `src/shared/components/StepperHeader.tsx` — breadcrumb stepper user shuttle
-- `src/modules/shuttle/data/inventory.ts` — helper getOccupied/blockSeat/unblockSeat
+## User Shuttle Integration
+
+- `**ShuttleRayon**`: tampilkan jam pickup di samping nama tiap titik (chip jadi 2 baris: nama + jam). Tampilkan info "±58 km" di header.
+- `**ShuttleService` & `ShuttleVehicle**`: `calcPrice` Fare Calculation
+  Rumus baru pricing:
+  ```
+  finalfare = (totalDistanceM / 1000) × service.priceMultiplier.
+  ```
+- `**ShuttleBooking**`: di summary breakdown harga sebut komponen jarak.
+
+## File Changes
 
 **EDIT:**
-- `src/modules/shuttle/data/rayons.ts` — `getDestination()` baca repo + tambah `surcharge` di Rayon
-- `src/modules/shuttle/data/services.ts` — tambah `active` field; `calcPrice(vehicle, service, rayon?)`
-- `src/modules/shuttle/data/repository.ts` — getter/setter untuk destination, hero copy, inventory
-- `src/modules/shuttle/pages/ShuttleHome.tsx` — pakai konten dari repo
-- `src/modules/shuttle/pages/ShuttleRayon.tsx` — pax max dari repo + auto-skip
-- `src/modules/shuttle/pages/ShuttleService.tsx` — filter aktif + auto-skip + stepper
-- `src/modules/shuttle/pages/ShuttleVehicle.tsx` — filter aktif + stepper + occupied riil
-- `src/modules/shuttle/pages/ShuttleBooking.tsx` — `getOccupiedSeats(slot)` gabung booking + block
-- `src/modules/admin/pages/AdminServices.tsx` — toggle aktif
-- `src/modules/admin/pages/AdminVehicles.tsx` — toggle aktif
-- `src/modules/admin/pages/AdminRayons.tsx` — input surcharge
-- `src/modules/admin/pages/AdminDashboard.tsx` — setup checklist + quick actions + mismatch warning
-- `src/modules/admin/components/AdminSidebar.tsx` — restrukturisasi grouping
-- `src/App.tsx` — 2 route baru
 
----
+- `src/modules/shuttle/data/rayons.ts` — `PickupPoint` interface, `farePerKm`, helper `getTotalDistanceM(rayon)`, `getPickupNames(rayon)`, seed 4 rayon dari foto.
+- `src/modules/shuttle/data/services.ts` — `calcPrice(vehicle, service, rayon, pickupCode?)` dengan komponen jarak + helper `calcFareBreakdown()`.
+- `src/modules/admin/pages/AdminRayons.tsx` — 3-section dialog, inline pickup table, tombol Seed, ringkasan total jarak & estimasi fare.
+- `src/modules/shuttle/pages/ShuttleRayon.tsx` — chip pickup tampilkan jam, header pakai total jarak.
+- `src/modules/shuttle/pages/ShuttleService.tsx` & `ShuttleVehicle.tsx` — pakai `calcPrice` baru, tooltip breakdown.
+- `src/modules/shuttle/pages/ShuttleBooking.tsx` — breakdown harga di summary.
+- `src/modules/admin/pages/AdminDashboard.tsx` — checklist tambah item "Pickup points & jarak terisi".
 
-## Hasil Akhir
+## Migration
 
-Admin punya **kontrol penuh** atas semua yang dilihat & dialami user shuttle: branding, tujuan, rayon/jam/tarif, service & kendaraan (termasuk on/off), denah kursi, **dan stok kursi per slot**. Sidebar dirapikan jadi 3 grup (Konten, Setup, Operasional) sehingga alur kerja admin jelas: **setup sekali → kelola operasional harian**. User flow lebih cepat (auto-skip kalau hanya 1 pilihan) dan jelas (stepper breadcrumb). Dashboard memandu admin lewat checklist setup, sehingga tidak ada lagi data hardcoded yang tertinggal.
+`getRayons()` di-wrap dengan `migrateRayon()` yang konversi `pickupPoints: string[]` lama → `PickupPoint[]` (default time empty, distance 0, code auto J1…). Sekali jalan saat read, lalu cache.
+
+## Hasil
+
+Admin punya data riil PYU-GO 4 rayon dengan jadwal & jarak yang akurat. Fare otomatis proporsional dengan jarak tempuh rayon (Rayon B yang 65 km lebih mahal dari Rayon D 30 km). User lihat jam pickup tiap titik dan rincian fare yang transparan.
