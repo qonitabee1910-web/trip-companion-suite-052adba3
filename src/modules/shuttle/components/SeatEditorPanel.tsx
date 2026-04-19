@@ -287,31 +287,29 @@ ${seatsStr}
               <Badge variant="outline" className="text-[10px]">{LAYOUT_LABELS[layoutKey]}</Badge>
               {hasSaved && <Badge variant="secondary" className="text-[10px]">Tersimpan</Badge>}
             </div>
-            {vehicle && service && (
+            <div className="text-muted-foreground">
+              Kapasitas kursi: <span className="font-medium text-foreground">{capacity}</span>
+              <span className="text-[10px] ml-1">(otomatis dari layout)</span>
+            </div>
+            {service && (
               <div className="text-muted-foreground">
-                Kapasitas: <span className="font-medium text-foreground">{vehicle.totalSeats}</span> kursi •
-                Harga: <span className="font-medium text-foreground">Rp{finalPrice.toLocaleString("id-ID")}</span>
+                Estimasi total ke user: <span className="font-medium text-foreground">Rp{finalPrice.toLocaleString("id-ID")}</span>
               </div>
             )}
-            <div className="text-muted-foreground">
-              Kursi pada layout: <span className="font-medium text-foreground">{config.seats.length}</span>
-            </div>
           </div>
 
-          {capacityMismatch && vehicle && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 space-y-2">
-              <div className="flex items-start gap-2 text-xs">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>
-                  Layout punya <b>{config.seats.length}</b> kursi tapi kapasitas kendaraan
-                  <b> {vehicle.totalSeats}</b>. Sinkronkan agar tampilan user konsisten.
-                </span>
-              </div>
-              <Button size="sm" variant="outline" className="w-full" onClick={syncToCapacity}>
-                <Wand2 className="h-4 w-4" /> Sinkronkan ke {vehicle.totalSeats} kursi
-              </Button>
-            </div>
-          )}
+          <div>
+            <Label>Harga Dasar — {service?.label} (Rp)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={tierPrice}
+              onChange={(e) => setTierPrice(Math.max(0, Number(e.target.value) || 0))}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Harga dasar untuk kombinasi {vehicle?.label ?? "kendaraan"} × {service?.label ?? "service"}. Disimpan saat klik Simpan.
+            </p>
+          </div>
 
           <div>
             <Label>Aspect Ratio</Label>
