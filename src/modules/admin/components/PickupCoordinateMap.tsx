@@ -123,13 +123,31 @@ export const PickupCoordinateMap = ({
   const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Debounced fetch
+  // Debounced fetch with localStorage cache
   useEffect(() => {
     const q = query.trim();
     if (q.length < 3) {
       setResults([]);
       setLoading(false);
       return;
+    }
+    const cacheKey = `nominatim:${q.toLowerCase()}`;
+    // Try cache first (TTL 7 days)
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { ts: number; data: NominatimResult[] };
+        const TTL = 7 * 24 * 60 * 60 * 1000;
+        if (Date.now() - parsed.ts < TTL) {
+          setResults(parsed.data);
+          setOpen(true);
+          setLoading(false);
+          return;
+        }
+        localStorage.removeItem(cacheKey);
+      }
+    } catch {
+      // ignore cache read errors
     }
     setLoading(true);
     const t = setTimeout(async () => {
@@ -143,6 +161,22 @@ export const PickupCoordinateMap = ({
         const data: NominatimResult[] = await res.json();
         setResults(data);
         setOpen(true);
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+        } catch {
+          // quota exceeded — best effort eviction of oldest nominatim entries
+          try {
+            const keys: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith("nominatim:")) keys.push(k);
+            }
+            keys.slice(0, Math.ceil(keys.length / 2)).forEach((k) => localStorage.removeItem(k));
+            localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+          } catch {
+            // give up silently
+          }
+        }
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("Nominatim error", err);
