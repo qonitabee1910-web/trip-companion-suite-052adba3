@@ -35,8 +35,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, Edit, Trash2, X, RotateCcw, Save, MapPin, Clock, Sparkles,
-  ArrowUp, ArrowDown, Route, Calculator,
+  ArrowUp, ArrowDown, Route, Calculator, Crosshair, Maximize2,
 } from "lucide-react";
+import { PickupCoordinateMap } from "../components/PickupCoordinateMap";
 import {
   getRayons,
   saveRayons,
