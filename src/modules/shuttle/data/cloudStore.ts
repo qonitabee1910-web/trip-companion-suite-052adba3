@@ -28,6 +28,7 @@ import {
 } from "./services";
 import type { ShuttleBooking, BookingStatus } from "../types/booking";
 import type { Hotel } from "@/modules/hotel/types";
+import type { SeatLayoutConfig } from "./seatLayouts";
 
 // ============== Cache ==============
 interface Cache {
@@ -40,6 +41,8 @@ interface Cache {
   bookings: ShuttleBooking[];
   seatBlocks: SeatBlock[];
   hotels: Hotel[];
+  /** Map of LayoutKey (e.g. "HIACE_REGULER") -> stored layout payload (without image baked-in unless saved that way). */
+  seatLayouts: Record<string, Partial<SeatLayoutConfig>>;
   hydrated: boolean;
 }
 
