@@ -95,7 +95,17 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const [snap, setSnap] = useState(false);
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [hasSaved, setHasSaved] = useState(() => hasStoredLayout(startKey));
+  const [updatedAt, setUpdatedAt] = useState<string | null>(() => getLayoutUpdatedAt(startKey));
+  const [uploading, setUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to cloud store so badge timestamp refreshes when realtime fires
+  useEffect(() => {
+    return subscribeStore(() => {
+      setUpdatedAt(getLayoutUpdatedAt(layoutKey));
+      setHasSaved(hasStoredLayout(layoutKey));
+    });
+  }, [layoutKey]);
 
   // Reload whenever vehicle/tier combo changes
   useEffect(() => {
@@ -106,6 +116,7 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     setCustomImage(isCustomImg ? stored!.image : null);
     setSelectedNum(null);
     setHasSaved(hasStoredLayout(layoutKey));
+    setUpdatedAt(getLayoutUpdatedAt(layoutKey));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layoutKey]);
 
