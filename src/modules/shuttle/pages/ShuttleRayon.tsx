@@ -38,6 +38,8 @@ const ShuttleRayon = () => {
   }
 
   const totalKm = getTotalDistanceM(rayon) / 1000;
+  const shifted = getShiftedSchedule(rayon, time);
+  const arriveTime = shifted.get("DEST") || rayon.pickupPoints[rayon.pickupPoints.length - 1]?.time || "";
 
   const handleNext = () => {
     const params = new URLSearchParams({
