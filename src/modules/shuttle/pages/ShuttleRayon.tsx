@@ -9,10 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { getRayon, getDestination, getContent } from "../data/rayons";
+import { getRayon, getDestination, getContent, getTotalDistanceM } from "../data/rayons";
 import { getDepartTimes, getServicesAll } from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
-import { MapPin, Plane, Users, Minus, Plus, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { MapPin, Plane, Users, Minus, Plus, Clock, Calendar as CalendarIcon, Route } from "lucide-react";
 
 const ShuttleRayon = () => {
   const { id = "A" } = useParams();
@@ -22,7 +22,8 @@ const ShuttleRayon = () => {
   const DESTINATION = getDestination();
   const content = getContent();
   const activeServices = getServicesAll().filter((s) => s.active !== false);
-  const [pickup, setPickup] = useState(rayon?.pickupPoints[0] || "");
+  const pickupOptions = (rayon?.pickupPoints || []).filter((p) => p.code !== "DEST");
+  const [pickup, setPickup] = useState(pickupOptions[0]?.code || "");
   const [date, setDate] = useState<Date>(startOfToday());
   const [time, setTime] = useState(DEPART_TIMES[1] ?? DEPART_TIMES[0] ?? "06:00");
   const [pax, setPax] = useState(1);
@@ -35,6 +36,8 @@ const ShuttleRayon = () => {
     );
   }
 
+  const totalKm = getTotalDistanceM(rayon) / 1000;
+
   const handleNext = () => {
     const params = new URLSearchParams({
       rayon: rayon.id,
@@ -43,7 +46,6 @@ const ShuttleRayon = () => {
       time,
       pax: String(pax),
     });
-    // Auto-skip service step if only 1 active service
     if (activeServices.length === 1) {
       params.set("service", activeServices[0].tier);
       navigate(`/shuttle/vehicle?${params.toString()}`);
@@ -76,9 +78,17 @@ const ShuttleRayon = () => {
               </div>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" /> Estimasi tempuh ±{rayon.estimateMin} menit
-          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" /> ±{rayon.estimateMin} menit
+            </span>
+            <span className="flex items-center gap-1">
+              <Route className="h-3.5 w-3.5" /> ±{totalKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km
+            </span>
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" /> {pickupOptions.length} titik jemput
+            </span>
+          </div>
         </Card>
 
         <Card className="p-4 md:p-5 space-y-4">
@@ -86,20 +96,26 @@ const ShuttleRayon = () => {
             <h3 className="font-semibold mb-2 flex items-center gap-2">
               <MapPin className="h-4 w-4 text-primary" /> Titik Jemput
             </h3>
-            <div className="flex flex-wrap gap-2">
-              {rayon.pickupPoints.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPickup(p)}
-                  className={`px-3 py-2 rounded-full text-sm border-2 transition-all ${
-                    pickup === p
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card hover:border-primary/50"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {pickupOptions.map((p) => {
+                const active = pickup === p.code;
+                return (
+                  <button
+                    key={p.code}
+                    onClick={() => setPickup(p.code)}
+                    className={`px-3 py-2 rounded-lg text-left text-sm border-2 transition-all ${
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="font-medium leading-tight truncate">{p.name}</div>
+                    <div className={`text-[10px] mt-0.5 flex items-center gap-1 ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                      <Clock className="h-2.5 w-2.5" /> {p.time || "—"}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
