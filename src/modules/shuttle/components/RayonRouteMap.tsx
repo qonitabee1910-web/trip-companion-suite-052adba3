@@ -66,6 +66,16 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
+function PanToSelected({ target }: { target: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!target) return;
+    const targetZoom = Math.max(map.getZoom(), 14);
+    map.flyTo(target, targetZoom, { duration: 0.6 });
+  }, [map, target?.[0], target?.[1]]);
+  return null;
+}
+
 export const RayonRouteMap = ({
   rayon,
   selectedCode,
@@ -83,6 +93,10 @@ export const RayonRouteMap = ({
   );
 
   const polyline: [number, number][] = points.map((p) => [p.lat, p.lng]);
+  const selectedPoint = points.find((p) => p.code === selectedCode);
+  const selectedTarget: [number, number] | null = selectedPoint
+    ? [selectedPoint.lat, selectedPoint.lng]
+    : null;
 
   if (points.length === 0) {
     return (
@@ -108,6 +122,7 @@ export const RayonRouteMap = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds points={polyline} />
+        <PanToSelected target={selectedTarget} />
         <Polyline
           positions={polyline}
           pathOptions={{ color: "hsl(217 91% 60%)", weight: 4, opacity: 0.85 }}
