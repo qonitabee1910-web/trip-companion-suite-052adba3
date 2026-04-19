@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Route } from "lucide-react";
 import { SeatMap } from "../components/SeatMap";
-import { getService, getVehicleType, calcFareBreakdown, SERVICES, VEHICLE_TYPES } from "../data/services";
+import { getService, getVehicleType, calcFareBreakdown, getVehicleSeatCount, SERVICES, VEHICLE_TYPES } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { addBooking } from "../data/repository";
 import { getOccupiedSeats } from "../data/inventory";
@@ -35,7 +35,7 @@ const ShuttleBooking = () => {
       ? format(parsedDate, "EEE, d MMM yyyy", { locale: localeId })
       : "-";
 
-  const totalSeats = vehicle.totalSeats;
+  const totalSeats = getVehicleSeatCount(vehicle.id, service.tier);
   const occupiedSeats = new Set(
     getOccupiedSeats({
       date: dateStr,

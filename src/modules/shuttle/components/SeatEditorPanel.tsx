@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, AlertTriangle, Wand2 } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,8 +47,9 @@ import {
 import {
   getVehicleTypesAll,
   getServicesAll,
+  saveVehicleTypes,
 } from "../data/repository";
-import { calcPrice } from "../data/services";
+import { calcPrice, type VehicleType } from "../data/services";
 
 interface Props {
   initialKey?: LayoutKey;
@@ -108,8 +109,23 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
   const service = services.find((s) => s.tier === tier);
-  const finalPrice = vehicle && service ? calcPrice(vehicle, service) : 0;
-  const capacityMismatch = !!vehicle && config.seats.length !== vehicle.totalSeats;
+
+  // Harga dasar per (vehicle × tier) — diedit di sini, persist ke vehicles store.
+  const initialTierPrice = vehicle?.tierPrices?.[tier] ?? vehicle?.basePrice ?? 0;
+  const [tierPrice, setTierPrice] = useState<number>(initialTierPrice);
+
+  // Sync price field saat ganti vehicle/tier
+  useEffect(() => {
+    const v = getVehicleTypesAll().find((x) => x.id === vehicleId);
+    setTierPrice(v?.tierPrices?.[tier] ?? v?.basePrice ?? 0);
+  }, [vehicleId, tier]);
+
+  // Preview total harga pakai tierPrice yang sedang diedit (override sementara)
+  const previewVehicle: VehicleType | undefined = vehicle
+    ? { ...vehicle, tierPrices: { ...(vehicle.tierPrices ?? {}), [tier]: tierPrice } }
+    : undefined;
+  const finalPrice = previewVehicle && service ? calcPrice(previewVehicle, service) : 0;
+  const capacity = config.seats.length;
 
   const resetToPreset = () => {
     const p = LAYOUT_PRESETS[layoutKey];
@@ -120,12 +136,24 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
 
   const saveLayout = () => {
     const ok = saveLayoutToStorage(layoutKey, config, !!customImage);
-    if (ok) {
-      setHasSaved(true);
-      toast.success(`Layout ${LAYOUT_LABELS[layoutKey]} disimpan — tampilan user diperbarui`);
-    } else {
+    if (!ok) {
       toast.error("Gagal menyimpan (storage penuh?)");
+      return;
     }
+    setHasSaved(true);
+
+    // Persist tierPrice ke vehicles store
+    if (vehicle) {
+      const all = getVehicleTypesAll();
+      const next = all.map((v) =>
+        v.id === vehicleId
+          ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
+          : v,
+      );
+      saveVehicleTypes(next);
+    }
+
+    toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan — kapasitas ${capacity} kursi, harga Rp${tierPrice.toLocaleString("id-ID")}`);
   };
 
   const clearSaved = () => {
@@ -133,24 +161,6 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     setHasSaved(false);
     resetToPreset();
     toast.success(`Simpanan ${LAYOUT_LABELS[layoutKey]} dihapus, kembali ke default`);
-  };
-
-  const syncToCapacity = () => {
-    if (!vehicle) return;
-    const target = vehicle.totalSeats;
-    setConfig((c) => {
-      let seats = [...c.seats];
-      if (seats.length > target) {
-        seats = seats.slice(0, target);
-      } else {
-        for (let i = seats.length; i < target; i++) {
-          seats.push({ num: i + 1, x: 30 + ((i % 3) * 20), y: 90 });
-        }
-      }
-      seats = seats.map((s, i) => ({ ...s, num: i + 1 }));
-      return { ...c, seats };
-    });
-    toast.success(`Disinkronkan ke ${target} kursi. Jangan lupa Simpan.`);
   };
 
   const updateSeat = (num: number, x: number, y: number) => {
@@ -277,31 +287,29 @@ ${seatsStr}
               <Badge variant="outline" className="text-[10px]">{LAYOUT_LABELS[layoutKey]}</Badge>
               {hasSaved && <Badge variant="secondary" className="text-[10px]">Tersimpan</Badge>}
             </div>
-            {vehicle && service && (
+            <div className="text-muted-foreground">
+              Kapasitas kursi: <span className="font-medium text-foreground">{capacity}</span>
+              <span className="text-[10px] ml-1">(otomatis dari layout)</span>
+            </div>
+            {service && (
               <div className="text-muted-foreground">
-                Kapasitas: <span className="font-medium text-foreground">{vehicle.totalSeats}</span> kursi •
-                Harga: <span className="font-medium text-foreground">Rp{finalPrice.toLocaleString("id-ID")}</span>
+                Estimasi total ke user: <span className="font-medium text-foreground">Rp{finalPrice.toLocaleString("id-ID")}</span>
               </div>
             )}
-            <div className="text-muted-foreground">
-              Kursi pada layout: <span className="font-medium text-foreground">{config.seats.length}</span>
-            </div>
           </div>
 
-          {capacityMismatch && vehicle && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 space-y-2">
-              <div className="flex items-start gap-2 text-xs">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>
-                  Layout punya <b>{config.seats.length}</b> kursi tapi kapasitas kendaraan
-                  <b> {vehicle.totalSeats}</b>. Sinkronkan agar tampilan user konsisten.
-                </span>
-              </div>
-              <Button size="sm" variant="outline" className="w-full" onClick={syncToCapacity}>
-                <Wand2 className="h-4 w-4" /> Sinkronkan ke {vehicle.totalSeats} kursi
-              </Button>
-            </div>
-          )}
+          <div>
+            <Label>Harga Dasar — {service?.label} (Rp)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={tierPrice}
+              onChange={(e) => setTierPrice(Math.max(0, Number(e.target.value) || 0))}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Harga dasar untuk kombinasi {vehicle?.label ?? "kendaraan"} × {service?.label ?? "service"}. Disimpan saat klik Simpan.
+            </p>
+          </div>
 
           <div>
             <Label>Aspect Ratio</Label>

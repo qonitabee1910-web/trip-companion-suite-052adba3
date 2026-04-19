@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Sparkles, Crown, Gauge } from "lucide-react";
-import { calcPrice } from "../data/services";
+import { calcPrice, getVehicleTierPrice } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
@@ -24,10 +24,7 @@ const ShuttleService = () => {
   const SERVICES = getServicesAll().filter((s) => s.active !== false);
   const VEHICLE_TYPES = getVehicleTypesAll().filter((v) => v.active !== false);
 
-  const cheapestVehicle = VEHICLE_TYPES.reduce(
-    (min, v) => (v.basePrice < min.basePrice ? v : min),
-    VEHICLE_TYPES[0],
-  );
+  // Cheapest vehicle dihitung per service tier (untuk label "mulai dari").
 
   // Auto-skip if only one service active
   useEffect(() => {
@@ -70,7 +67,15 @@ const ShuttleService = () => {
 
         {SERVICES.map((s) => {
           const Icon = tierIcon[s.tier] ?? Gauge;
-          const startPrice = cheapestVehicle ? calcPrice(cheapestVehicle, s, rayon) : 0;
+          const cheapestForTier = VEHICLE_TYPES.reduce<typeof VEHICLE_TYPES[number] | undefined>(
+            (min, v) => {
+              const p = getVehicleTierPrice(v, s.tier);
+              if (!min) return v;
+              return p < getVehicleTierPrice(min, s.tier) ? v : min;
+            },
+            undefined,
+          );
+          const startPrice = cheapestForTier ? calcPrice(cheapestForTier, s, rayon) : 0;
           const isExec = s.tier === "executive";
           return (
             <Card
