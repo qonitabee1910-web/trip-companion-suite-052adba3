@@ -79,6 +79,7 @@ const ShuttleRayon = () => {
                 <Plane className="h-4 w-4 text-accent" />
                 {DESTINATION.short}
               </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Tiba ±{arriveTime}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -92,6 +93,24 @@ const ShuttleRayon = () => {
               <MapPin className="h-3.5 w-3.5" /> {pickupOptions.length} titik jemput
             </span>
           </div>
+        </Card>
+
+        <Card className="p-3 md:p-4 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <Route className="h-4 w-4 text-primary" /> Rute Perjalanan
+            </h3>
+            <span className="text-[11px] text-muted-foreground">
+              Tap titik di peta untuk memilih
+            </span>
+          </div>
+          <RayonRouteMap
+            rayon={rayon}
+            selectedCode={pickup}
+            onSelect={setPickup}
+            shiftedTimes={shifted}
+            height="300px"
+          />
         </Card>
 
         <Card className="p-4 md:p-5 space-y-4">
