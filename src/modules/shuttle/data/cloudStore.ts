@@ -28,6 +28,7 @@ import {
 } from "./services";
 import type { ShuttleBooking, BookingStatus } from "../types/booking";
 import type { Hotel } from "@/modules/hotel/types";
+import type { SeatLayoutConfig } from "./seatLayouts";
 
 // ============== Cache ==============
 interface Cache {
@@ -40,6 +41,8 @@ interface Cache {
   bookings: ShuttleBooking[];
   seatBlocks: SeatBlock[];
   hotels: Hotel[];
+  /** Map of LayoutKey (e.g. "HIACE_REGULER") -> stored layout payload (without image baked-in unless saved that way). */
+  seatLayouts: Record<string, Partial<SeatLayoutConfig>>;
   hydrated: boolean;
 }
 
@@ -63,6 +66,7 @@ const cache: Cache = {
   bookings: [],
   seatBlocks: [],
   hotels: [],
+  seatLayouts: {},
   hydrated: false,
 };
 
@@ -158,6 +162,18 @@ async function hydrate() {
           totalSeats: reg?.capacity ?? 0,
         };
       });
+    }
+
+    // Seat layouts: build map keyed by LayoutKey ("HIACE_REGULER" etc.)
+    if (layoutRes.data) {
+      const map: Record<string, Partial<SeatLayoutConfig>> = {};
+      layoutRes.data.forEach((l) => {
+        const tierSuffix =
+          l.tier === "executive" ? "EXEC" : l.tier === "semi-executive" ? "SEMI" : "REGULER";
+        const key = `${(l.vehicle_id || "").toUpperCase()}_${tierSuffix}`;
+        map[key] = (l.layout || {}) as Partial<SeatLayoutConfig>;
+      });
+      cache.seatLayouts = map;
     }
 
     if (timesRes.data) {
@@ -300,6 +316,28 @@ function setupRealtime() {
               tier: b.tier,
               seatNumber: b.seat_number,
             }));
+            notify();
+          }
+        });
+    })
+    .subscribe();
+
+  supabase
+    .channel("cloud-store-seat-layouts")
+    .on("postgres_changes", { event: "*", schema: "public", table: "seat_layouts" }, () => {
+      supabase
+        .from("seat_layouts")
+        .select("*")
+        .then(({ data }) => {
+          if (data) {
+            const map: Record<string, Partial<SeatLayoutConfig>> = {};
+            data.forEach((l) => {
+              const tierSuffix =
+                l.tier === "executive" ? "EXEC" : l.tier === "semi-executive" ? "SEMI" : "REGULER";
+              const key = `${(l.vehicle_id || "").toUpperCase()}_${tierSuffix}`;
+              map[key] = (l.layout || {}) as Partial<SeatLayoutConfig>;
+            });
+            cache.seatLayouts = map;
             notify();
           }
         });
@@ -511,5 +549,54 @@ export async function setBlockedSeatsCloud(slot: {
         seatNumber: n,
       })),
     );
+  notify();
+}
+
+// ============== Seat Layouts ==============
+/**
+ * Decode a LayoutKey (e.g. "HIACE_REGULER", "SUV_SEMI", "MINICAR_EXEC")
+ * into the DB's vehicle_id (lowercase) + tier columns.
+ */
+function decodeLayoutKey(key: string): { vehicleId: string; tier: string } {
+  const parts = key.split("_");
+  const v = (parts[0] || "").toLowerCase();
+  const suffix = parts[1] || "REGULER";
+  const tier =
+    suffix === "EXEC" ? "executive" : suffix === "SEMI" ? "semi-executive" : "reguler";
+  return { vehicleId: v, tier };
+}
+
+export async function persistSeatLayout(
+  layoutKey: string,
+  payload: Partial<SeatLayoutConfig>,
+): Promise<void> {
+  const { vehicleId, tier } = decodeLayoutKey(layoutKey);
+  const capacity = payload.seats?.length ?? 0;
+  await supabase
+    .from("seat_layouts")
+    .delete()
+    .eq("vehicle_id", vehicleId)
+    .eq("tier", tier);
+  const { error } = await supabase.from("seat_layouts").insert({
+    vehicle_id: vehicleId,
+    tier,
+    layout: payload as any,
+    capacity,
+  });
+  if (error) throw error;
+  cache.seatLayouts = { ...cache.seatLayouts, [layoutKey]: payload };
+  notify();
+}
+
+export async function clearSeatLayoutCloud(layoutKey: string): Promise<void> {
+  const { vehicleId, tier } = decodeLayoutKey(layoutKey);
+  await supabase
+    .from("seat_layouts")
+    .delete()
+    .eq("vehicle_id", vehicleId)
+    .eq("tier", tier);
+  const next = { ...cache.seatLayouts };
+  delete next[layoutKey];
+  cache.seatLayouts = next;
   notify();
 }
