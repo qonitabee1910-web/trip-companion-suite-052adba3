@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { getRayon, getDestination, getContent, getTotalDistanceM } from "../data/rayons";
+import { getRayon, getDestination, getContent, getTotalDistanceM, getShiftedSchedule } from "../data/rayons";
 import { getDepartTimes, getServicesAll } from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
+import { RayonRouteMap } from "../components/RayonRouteMap";
 import { MapPin, Plane, Users, Minus, Plus, Clock, Calendar as CalendarIcon, Route } from "lucide-react";
 
 const ShuttleRayon = () => {
