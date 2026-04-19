@@ -560,18 +560,21 @@ const AdminRayons = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[40px]"></TableHead>
-                        <TableHead className="w-[80px]">Kode</TableHead>
+                        <TableHead className="w-[70px]">Kode</TableHead>
                         <TableHead>Nama Titik</TableHead>
-                        <TableHead className="w-[100px]">Jam</TableHead>
-                        <TableHead className="w-[140px] text-right">Jarak ke berikutnya (m)</TableHead>
+                        <TableHead className="w-[90px]">Jam</TableHead>
+                        <TableHead className="w-[120px] text-right">Jarak (m)</TableHead>
+                        <TableHead className="w-[260px]">Koordinat</TableHead>
                         <TableHead className="w-[60px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {editing.data.pickupPoints.map((p, i) => {
                         const isDest = p.code === "DEST";
+                        const hasCoord = typeof p.lat === "number" && typeof p.lng === "number";
+                        const isActive = activeCaptureCode === p.code;
                         return (
-                          <TableRow key={i} className={isDest ? "bg-accent/5" : ""}>
+                          <TableRow key={i} className={isDest ? "bg-accent/5" : isActive ? "bg-primary/10" : ""}>
                             <TableCell className="p-1">
                               <div className="flex flex-col">
                                 <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => movePickup(i, -1)} disabled={i === 0}>
@@ -615,6 +618,56 @@ const AdminRayons = () => {
                                 className="h-8 text-right tabular-nums"
                               />
                             </TableCell>
+                            <TableCell className="p-1">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant={isActive ? "default" : "outline"}
+                                  className="h-8 w-8 shrink-0"
+                                  type="button"
+                                  onClick={() => setActiveCaptureCode(isActive ? null : p.code)}
+                                  title="Klik di peta untuk set koordinat"
+                                >
+                                  <Crosshair className="h-3.5 w-3.5" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  step="0.000001"
+                                  value={p.lat ?? ""}
+                                  placeholder="lat"
+                                  onChange={(e) =>
+                                    updatePickup(i, {
+                                      lat: e.target.value === "" ? undefined : Number(e.target.value),
+                                    })
+                                  }
+                                  className="h-8 text-xs tabular-nums px-1"
+                                />
+                                <Input
+                                  type="number"
+                                  step="0.000001"
+                                  value={p.lng ?? ""}
+                                  placeholder="lng"
+                                  onChange={(e) =>
+                                    updatePickup(i, {
+                                      lng: e.target.value === "" ? undefined : Number(e.target.value),
+                                    })
+                                  }
+                                  className="h-8 text-xs tabular-nums px-1"
+                                />
+                                {hasCoord && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 shrink-0"
+                                    type="button"
+                                    onClick={() => clearCoord(p.code)}
+                                    title="Hapus koordinat"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell className="p-1 text-right">
                               {!isDest && (
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removePickup(i)}>
@@ -630,12 +683,56 @@ const AdminRayons = () => {
                 </div>
                 <div className="flex items-center justify-between mt-2 px-1 text-xs">
                   <span className="text-muted-foreground">
-                    {editing.data.pickupPoints.filter((p) => p.code !== "DEST").length} titik jemput + 1 tujuan
+                    {editing.data.pickupPoints.filter((p) => p.code !== "DEST").length} titik jemput + 1 tujuan ·{" "}
+                    {editing.data.pickupPoints.filter((p) => typeof p.lat === "number" && typeof p.lng === "number").length}/
+                    {editing.data.pickupPoints.length} berkoordinat
                   </span>
                   <span className="font-semibold">
                     Total jarak: {editTotalKm.toLocaleString("id-ID", { maximumFractionDigits: 2 })} km
                   </span>
                 </div>
+
+                <div className="mt-4 mb-2 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-xs flex-1 min-w-0">
+                    {activeCaptureCode ? (
+                      <div className="px-3 py-2 rounded-md bg-primary/10 border border-primary/30 text-primary font-medium flex items-center gap-2 flex-wrap">
+                        <Crosshair className="h-3.5 w-3.5 shrink-0" />
+                        <span>Klik di peta untuk set koordinat <strong>{activeCaptureCode}</strong></span>
+                        {(() => {
+                          const pt = editing.data.pickupPoints.find((p) => p.code === activeCaptureCode);
+                          return pt?.name ? <span className="font-normal opacity-80">— {pt.name}</span> : null;
+                        })()}
+                        <button
+                          type="button"
+                          onClick={() => setActiveCaptureCode(null)}
+                          className="ml-auto text-primary/80 hover:text-primary underline"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Klik tombol <Crosshair className="inline h-3 w-3" /> di baris untuk menangkap koordinat dari peta. Marker bisa di-drag untuk koreksi.
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFitSignal((n) => n + 1)}
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" /> Fit semua titik
+                  </Button>
+                </div>
+
+                <PickupCoordinateMap
+                  points={editing.data.pickupPoints}
+                  activeCode={activeCaptureCode}
+                  onCapture={handleCapture}
+                  onDragMarker={handleDragMarker}
+                  fitSignal={fitSignal}
+                />
               </section>
             </div>
           )}
