@@ -77,6 +77,8 @@ const AdminRayons = () => {
   const [times, setTimes] = useState<string[]>(getDepartTimes());
   const [editing, setEditing] = useState<{ index: number; data: Rayon } | null>(null);
   const [newTime, setNewTime] = useState("");
+  const [activeCaptureCode, setActiveCaptureCode] = useState<string | null>(null);
+  const [fitSignal, setFitSignal] = useState(0);
 
   const persistRayons = (next: Rayon[]) => {
     setRayons(next);
