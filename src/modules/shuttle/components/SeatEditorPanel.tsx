@@ -72,6 +72,20 @@ function deriveFromKey(key: LayoutKey): { vehicle: VehicleId; tier: ServiceTier 
   return { vehicle, tier };
 }
 
+function formatRelative(iso: string | null): string {
+  if (!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const sec = Math.round(diffMs / 1000);
+  if (sec < 60) return "baru saja";
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} menit lalu`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} jam lalu`;
+  const day = Math.round(hr / 24);
+  if (day < 30) return `${day} hari lalu`;
+  return new Date(iso).toLocaleDateString("id-ID");
+}
+
 export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Props) {
   const vehicles = useMemo(() => getVehicleTypesAll(), []);
   const services = useMemo(() => getServicesAll(), []);
@@ -312,8 +326,17 @@ ${seatsStr}
           <div className="rounded-md border bg-muted/30 p-2 text-xs space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-[10px]">{LAYOUT_LABELS[layoutKey]}</Badge>
-              {hasSaved && <Badge variant="secondary" className="text-[10px]">Tersimpan</Badge>}
+              {hasSaved && (
+                <Badge variant="default" className="text-[10px] gap-1">
+                  <Cloud className="h-3 w-3" />Tersimpan di cloud
+                </Badge>
+              )}
             </div>
+            {hasSaved && updatedAt && (
+              <div className="text-[11px] text-muted-foreground">
+                Diperbarui: <span className="font-medium text-foreground">{formatRelative(updatedAt)}</span>
+              </div>
+            )}
             <div className="text-muted-foreground">
               Kapasitas kursi: <span className="font-medium text-foreground">{capacity}</span>
               <span className="text-[10px] ml-1">(otomatis dari layout)</span>
@@ -348,8 +371,15 @@ ${seatsStr}
           </div>
           <div>
             <Label>Upload denah (opsional)</Label>
-            <Input type="file" accept="image/*" onChange={handleImageUpload} />
-            {customImage && <p className="mt-1 text-xs text-muted-foreground">Custom image aktif</p>}
+            <Input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
+            {uploading && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />Mengupload ke cloud…
+              </p>
+            )}
+            {!uploading && customImage && (
+              <p className="mt-1 text-xs text-muted-foreground">Custom image aktif (cloud URL)</p>
+            )}
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="snap" className="cursor-pointer">Snap to grid (1%)</Label>
