@@ -1,81 +1,79 @@
-# Plan: Seed Data Rayon + Auto Fare Calculation by Distance
 
-## Analisis Data Gambar
 
-Tiap rayon punya urutan titik jemput dengan: **nama**, **jam pickup**, dan **jarak (meter) ke titik berikutnya**. Titik terakhir adalah destinasi (KNO/Kualanamu). Total jarak = jumlah semua segmen → jadi basis fare per-km.
+# Plan: Peta Leaflet Rute Rayon + Auto-Recalc Jam per Titik berdasarkan Jam Berangkat
 
-**Seed (dari foto):**
+## Konsep Inti
 
-- **Rayon A** — Medan Pusat — 14 titik + KNO. Total 58.250 m (~58 km). J1 Hermes Palace 06.00 → … → KNO 08.14.
-- **Rayon B** — Medan Barat — 18 titik + KNO. Total 65.520 m. J1 Cambridge 06.00 → … → KNO 08.25.
-- **Rayon C** — Medan Timur — 12 titik + Tol KNO. Total 31.400 m. J1 Adi Mulia 06.00 → … → Tol KNO 07.30.
-- **Rayon D** — Medan Polonia — 17 titik + Kualanamu. Total 30.000 m. J1 Hotel TD Pardede 06.00 → … → Kualanamu 08.32.
+1. **Tambahkan koordinat (lat, lng)** ke tiap `PickupPoint` di seed 4 rayon (Medan area). Saya akan isi koordinat berbasis nama hotel/landmark Medan yang sudah dikenal (Hermes Palace ~3.5752,98.6722; KNO ~3.6422,98.8853; dst.). Koordinat opsional di interface—titik tanpa koordinat akan di-skip dari peta tapi tetap tampil di list.
 
-## Perubahan Skema
+2. **Render Leaflet map** di `ShuttleRayon` dengan:
+   - Multi-marker (numbered: J1, J2, ..., DEST=pesawat)
+   - Polyline biru menghubungkan semua titik berurutan
+   - Marker yang dipilih user → highlight (warna primary, lebih besar)
+   - `fitBounds` otomatis sesuai semua titik
+   - Tap marker = pilih pickup tersebut (sinkron dengan grid)
 
-Ubah `pickupPoints: string[]` jadi `pickupPoints: PickupPoint[]`:
+3. **Auto-recalc jam tiap titik berdasarkan Jam Berangkat user**:
+   - Seed punya jam baseline (J1=06:00). Hitung **offset menit** tiap titik dari J1 (J2=+5min, J3=+10min, dst.).
+   - Saat user pilih jam berangkat (misal 09:00), semua titik di-shift: J1=09:00, J2=09:05, ..., DEST=09:00+totalOffset.
+   - Helper baru `getShiftedSchedule(rayon, departTime)` → return `{ code, time }[]`.
+   - Tampil di chip pickup, di marker popup, dan di info "Tiba ±HH:MM" di header.
+
+## Schema Update
 
 ```ts
 interface PickupPoint {
-  code: string;       // J1, J2…
-  name: string;       // Hermes Palace
-  time: string;       // "06:00"
-  distanceToNext: number; // meters; 0 untuk titik terakhir sebelum destinasi
+  code: string;
+  name: string;
+  time: string;          // baseline (J1 reference)
+  distanceToNext: number;
+  lat?: number;          // NEW
+  lng?: number;          // NEW
 }
 ```
 
-Tambah field `totalDistanceM: number` (auto-compute) dan `farePerKm: number` (default 1.500 Rp/km, editable). Backward-compat: helper `getPickupNames(rayon)` mengembalikan `string[]` agar UI lama tetap jalan saat migrasi.
+Migration helper sudah ada—tinggal pass-through `lat`/`lng` jika ada.
 
-## Fare Calculation
+## Komponen Baru: `RayonRouteMap.tsx`
 
-Rumus baru pricing:
+Lokasi: `src/modules/shuttle/components/RayonRouteMap.tsx`
 
+- Pakai `react-leaflet` (sudah terinstall, lihat `MiniMap.tsx`).
+- Props: `rayon`, `selectedCode`, `onSelect`, `shiftedTimes` (Map<code, time>).
+- DivIcon kustom: lingkaran kecil dengan nomor (J1...) atau ikon pesawat untuk DEST. Warna beda untuk selected vs default vs destinasi.
+- Polyline `[lat,lng][]` sepanjang urutan titik (skip yg tidak punya koordinat).
+- `useMap` + `fitBounds` saat mount.
+- Height ~280px mobile, 360px desktop. `scrollWheelZoom={false}` untuk UX scroll halaman.
+
+## Helper Baru di `rayons.ts`
+
+```ts
+export function getScheduleOffsets(rayon): { code, offsetMin }[]
+export function getShiftedSchedule(rayon, departTime): Map<code, "HH:MM">
 ```
-finalfare = (totalDistanceM / 1000) × service.priceMultiplier
-```
 
-Optional: **fare per pickup point** — hitung sisa jarak dari titik jemput user sampai destinasi (jadi yang naik di titik terakhir bayar lebih murah). Default OFF; toggle "Per-pickup fare" di admin.
+Parse `time` baseline → hitung selisih menit dari titik pertama → tambahkan ke `departTime` user.
 
-## Admin UI (`/admin/shuttle/rayons`)
+## Integrasi di `ShuttleRayon.tsx`
 
-Restrukturisasi dialog edit rayon jadi 3 section:
+- Hitung `shifted = getShiftedSchedule(rayon, time)` (re-compute saat `time` berubah).
+- Tampilkan `<RayonRouteMap />` sebagai card baru **di antara header info dan card form** (line 92-94).
+- Chip pickup tampilkan `shifted.get(p.code)` bukan `p.time`.
+- Header info tambah "Tiba ±{shifted.get('DEST')}".
 
-1. **Info Dasar** — ID, Nama, Area, Estimasi, Surcharge (existing).
-2. **Tarif per KM** — input `farePerKm` + toggle "Hitung fare per titik jemput" + preview live: "Total jarak: 58,3 km × Rp1.500 = Rp87.450 → dibulatkan Rp87.000".
-3. **Titik Jemput & Jarak** — tabel inline dengan kolom: drag-handle, Kode (J1), Nama, Jam, Jarak ke Berikutnya (m), Aksi. Tombol **Tambah Titik** di bawah. Total jarak auto-update di footer tabel. Validasi: titik terakhir = destinasi (auto-add jika tidak ada).
+## Seed Koordinat (4 Rayon)
 
-Tambahan UX:
-
-- Tombol **"Seed dari PYU-GO"** di header → satu klik isi 4 rayon dari foto (overwrite confirm dialog).
-- Card ringkasan di atas table list: total titik, total jarak gabungan, rata-rata fare per rayon.
-- Kolom baru di table list: **Total Jarak (km)** & **Estimasi Fare** (untuk vehicle reguler termurah, sebagai sanity check).
-
-## User Shuttle Integration
-
-- `**ShuttleRayon**`: tampilkan jam pickup di samping nama tiap titik (chip jadi 2 baris: nama + jam). Tampilkan info "±58 km" di header.
-- `**ShuttleService` & `ShuttleVehicle**`: `calcPrice` Fare Calculation
-  Rumus baru pricing:
-  ```
-  finalfare = (totalDistanceM / 1000) × service.priceMultiplier.
-  ```
-- `**ShuttleBooking**`: di summary breakdown harga sebut komponen jarak.
+Saya akan isi koordinat plausible Medan untuk semua titik (pakai pengetahuan landmark umum: hotel-hotel besar, simpang, RS, KNO airport). Keakuratan ±200m cukup untuk visualisasi rute. Admin tetap bisa edit nanti jika perlu (akan ditambahkan field koordinat di AdminRayons di iterasi terpisah jika diminta).
 
 ## File Changes
 
+**NEW:** `src/modules/shuttle/components/RayonRouteMap.tsx`
+
 **EDIT:**
-
-- `src/modules/shuttle/data/rayons.ts` — `PickupPoint` interface, `farePerKm`, helper `getTotalDistanceM(rayon)`, `getPickupNames(rayon)`, seed 4 rayon dari foto.
-- `src/modules/shuttle/data/services.ts` — `calcPrice(vehicle, service, rayon, pickupCode?)` dengan komponen jarak + helper `calcFareBreakdown()`.
-- `src/modules/admin/pages/AdminRayons.tsx` — 3-section dialog, inline pickup table, tombol Seed, ringkasan total jarak & estimasi fare.
-- `src/modules/shuttle/pages/ShuttleRayon.tsx` — chip pickup tampilkan jam, header pakai total jarak.
-- `src/modules/shuttle/pages/ShuttleService.tsx` & `ShuttleVehicle.tsx` — pakai `calcPrice` baru, tooltip breakdown.
-- `src/modules/shuttle/pages/ShuttleBooking.tsx` — breakdown harga di summary.
-- `src/modules/admin/pages/AdminDashboard.tsx` — checklist tambah item "Pickup points & jarak terisi".
-
-## Migration
-
-`getRayons()` di-wrap dengan `migrateRayon()` yang konversi `pickupPoints: string[]` lama → `PickupPoint[]` (default time empty, distance 0, code auto J1…). Sekali jalan saat read, lalu cache.
+- `src/modules/shuttle/data/rayons.ts` — `lat`/`lng` di PickupPoint, koordinat di seed 4 rayon, helper `getShiftedSchedule` & `getScheduleOffsets`, update `migrateRayon` pass-through koordinat.
+- `src/modules/shuttle/pages/ShuttleRayon.tsx` — render map, pakai jam shifted di chip & header.
 
 ## Hasil
 
-Admin punya data riil PYU-GO 4 rayon dengan jadwal & jarak yang akurat. Fare otomatis proporsional dengan jarak tempuh rayon (Rayon B yang 65 km lebih mahal dari Rayon D 30 km). User lihat jam pickup tiap titik dan rincian fare yang transparan.
+User di `/shuttle/rayon/A` lihat peta interaktif rute Rayon A dengan polyline melewati 14 titik + KNO. Saat user ubah Jam Berangkat dari 06:00 ke 09:00, semua jam di chip + popup marker auto-update (J1=09:00, ..., KNO=11:14). Tap marker di peta = otomatis pilih pickup itu. Info "Tiba ±11:14" muncul di header.
+
