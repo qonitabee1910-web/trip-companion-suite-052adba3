@@ -21,6 +21,11 @@ import ShuttleVehicle from "./modules/shuttle/pages/ShuttleVehicle";
 
 import RideHome from "./modules/ride/pages/RideHome";
 
+import DriverLogin from "./modules/driver/pages/DriverLogin";
+import DriverHome from "./modules/driver/pages/DriverHome";
+import DriverActiveRide from "./modules/driver/pages/DriverActiveRide";
+import DriverShuttleTrip from "./modules/driver/pages/DriverShuttleTrip";
+
 import AdminDashboard from "./modules/admin/pages/AdminDashboard";
 import AdminRayons from "./modules/admin/pages/AdminRayons";
 import AdminServices from "./modules/admin/pages/AdminServices";
@@ -57,6 +62,12 @@ const App = () => (
           <Route path="/shuttle/:id/book" element={<ShuttleBooking />} />
 
           <Route path="/ride" element={<RideHome />} />
+
+          <Route path="/driver/login" element={<DriverLogin />} />
+          <Route path="/driver" element={<DriverHome />} />
+          <Route path="/driver/ride/:id" element={<DriverActiveRide />} />
+          <Route path="/driver/shuttle" element={<DriverShuttleTrip />} />
+          <Route path="/driver/shuttle/:id" element={<DriverShuttleTrip />} />
 
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/shuttle/rayons" element={<AdminRayons />} />
