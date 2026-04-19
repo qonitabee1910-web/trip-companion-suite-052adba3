@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Cloud, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import {
   clearLayoutFromStorage,
   hasStoredLayout,
   buildLayoutKey,
+  getLayoutUpdatedAt,
   DEFAULT_SEAT_SIZE,
   type SeatLayoutConfig,
   type SeatPosition,
@@ -49,6 +50,7 @@ import {
   getServicesAll,
   saveVehicleTypes,
 } from "../data/repository";
+import { uploadSeatLayoutImage, subscribeStore } from "../data/cloudStore";
 import { calcPrice, type VehicleType } from "../data/services";
 
 interface Props {
@@ -68,6 +70,20 @@ function deriveFromKey(key: LayoutKey): { vehicle: VehicleId; tier: ServiceTier 
   const vehicle = (v.toLowerCase() as VehicleId);
   const tier: ServiceTier = t === "EXEC" ? "executive" : t === "SEMI" ? "semi-executive" : "reguler";
   return { vehicle, tier };
+}
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const sec = Math.round(diffMs / 1000);
+  if (sec < 60) return "baru saja";
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} menit lalu`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} jam lalu`;
+  const day = Math.round(hr / 24);
+  if (day < 30) return `${day} hari lalu`;
+  return new Date(iso).toLocaleDateString("id-ID");
 }
 
 export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Props) {
@@ -93,7 +109,18 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const [snap, setSnap] = useState(false);
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [hasSaved, setHasSaved] = useState(() => hasStoredLayout(startKey));
+  const [updatedAt, setUpdatedAt] = useState<string | null>(() => getLayoutUpdatedAt(startKey));
+  const [uploading, setUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to cloud store so badge timestamp refreshes when realtime fires
+  useEffect(() => {
+    const unsub = subscribeStore(() => {
+      setUpdatedAt(getLayoutUpdatedAt(layoutKey));
+      setHasSaved(hasStoredLayout(layoutKey));
+    });
+    return () => { unsub(); };
+  }, [layoutKey]);
 
   // Reload whenever vehicle/tier combo changes
   useEffect(() => {
@@ -104,6 +131,7 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     setCustomImage(isCustomImg ? stored!.image : null);
     setSelectedNum(null);
     setHasSaved(hasStoredLayout(layoutKey));
+    setUpdatedAt(getLayoutUpdatedAt(layoutKey));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layoutKey]);
 
@@ -141,6 +169,7 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
       return;
     }
     setHasSaved(true);
+    setUpdatedAt(new Date().toISOString());
 
     // Persist tierPrice ke vehicles store
     if (vehicle) {
@@ -159,6 +188,7 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const clearSaved = () => {
     clearLayoutFromStorage(layoutKey);
     setHasSaved(false);
+    setUpdatedAt(null);
     resetToPreset();
     toast.success(`Simpanan ${LAYOUT_LABELS[layoutKey]} dihapus, kembali ke default`);
   };
@@ -208,16 +238,27 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setCustomImage(dataUrl);
-      setConfig((c) => ({ ...c, image: dataUrl }));
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Ukuran gambar maks 5MB");
+      e.target.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadSeatLayoutImage(layoutKey, file);
+      setCustomImage(url);
+      setConfig((c) => ({ ...c, image: url }));
+      toast.success("Gambar diupload ke cloud — klik Simpan untuk persist layout");
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal upload gambar (perlu login admin?)");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
   const exportSnippet = useMemo(() => {
@@ -285,8 +326,17 @@ ${seatsStr}
           <div className="rounded-md border bg-muted/30 p-2 text-xs space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-[10px]">{LAYOUT_LABELS[layoutKey]}</Badge>
-              {hasSaved && <Badge variant="secondary" className="text-[10px]">Tersimpan</Badge>}
+              {hasSaved && (
+                <Badge variant="default" className="text-[10px] gap-1">
+                  <Cloud className="h-3 w-3" />Tersimpan di cloud
+                </Badge>
+              )}
             </div>
+            {hasSaved && updatedAt && (
+              <div className="text-[11px] text-muted-foreground">
+                Diperbarui: <span className="font-medium text-foreground">{formatRelative(updatedAt)}</span>
+              </div>
+            )}
             <div className="text-muted-foreground">
               Kapasitas kursi: <span className="font-medium text-foreground">{capacity}</span>
               <span className="text-[10px] ml-1">(otomatis dari layout)</span>
@@ -321,8 +371,15 @@ ${seatsStr}
           </div>
           <div>
             <Label>Upload denah (opsional)</Label>
-            <Input type="file" accept="image/*" onChange={handleImageUpload} />
-            {customImage && <p className="mt-1 text-xs text-muted-foreground">Custom image aktif</p>}
+            <Input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
+            {uploading && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />Mengupload ke cloud…
+              </p>
+            )}
+            {!uploading && customImage && (
+              <p className="mt-1 text-xs text-muted-foreground">Custom image aktif (cloud URL)</p>
+            )}
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="snap" className="cursor-pointer">Snap to grid (1%)</Label>

@@ -293,6 +293,11 @@ export function hasStoredLayout(key: VehicleKey): boolean {
   return !!cloudCache.seatLayouts[normalizeKey(key)];
 }
 
+/** Returns the ISO timestamp of last cloud update for this layout, or null if not stored. */
+export function getLayoutUpdatedAt(key: VehicleKey): string | null {
+  return cloudCache.seatLayoutTimestamps[normalizeKey(key)] || null;
+}
+
 // Resolver utama untuk SeatMap user. Bisa dipanggil dengan service tier opsional.
 export function getSeatLayout(
   vehicle: string,
