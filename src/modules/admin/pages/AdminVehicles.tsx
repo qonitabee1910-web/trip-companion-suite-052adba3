@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Save, RotateCcw, Bus, Armchair } from "lucide-react";
+import { Save, RotateCcw, Bus, Armchair, Info } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { getVehicleTypesAll, saveVehicleTypes, resetSection } from "@/modules/shuttle/data/repository";
 import type { VehicleType } from "@/modules/shuttle/data/services";
@@ -50,7 +50,7 @@ const AdminVehicles = () => {
             <h2 className="font-semibold flex items-center gap-2">
               <Bus className="h-4 w-4 text-primary" /> Tipe Kendaraan
             </h2>
-            <p className="text-xs text-muted-foreground">Atur kapasitas & harga dasar tiap tipe.</p>
+            <p className="text-xs text-muted-foreground">Atur identitas & status. Kapasitas kursi & harga dasar diatur di Seat Editor.</p>
           </div>
           <div className="flex gap-2">
             <AlertDialog>
@@ -76,6 +76,13 @@ const AdminVehicles = () => {
           </div>
         </div>
 
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs flex items-start gap-2">
+          <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <span>
+            Kapasitas kursi dihitung otomatis dari jumlah kursi pada layout. Harga dasar diatur per (kendaraan × service) di Seat Editor.
+          </span>
+        </div>
+
         {vehicles.map((v, idx) => (
           <Card key={v.id} className="p-4 md:p-5 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -91,7 +98,7 @@ const AdminVehicles = () => {
               </div>
               <div className="flex items-center gap-1 flex-wrap">
                 <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1">
-                  <Armchair className="h-3.5 w-3.5" /> Edit denah:
+                  <Armchair className="h-3.5 w-3.5" /> Edit denah & harga:
                 </span>
                 {([
                   { tier: "reguler", label: "Reguler" },
@@ -114,22 +121,6 @@ const AdminVehicles = () => {
               <div>
                 <Label>Nama Kendaraan</Label>
                 <Input value={v.vehicleName} onChange={(e) => update(idx, { vehicleName: e.target.value })} />
-              </div>
-              <div>
-                <Label>Kapasitas Kursi</Label>
-                <Input
-                  type="number"
-                  value={v.totalSeats}
-                  onChange={(e) => update(idx, { totalSeats: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <Label>Harga Dasar (Rp)</Label>
-                <Input
-                  type="number"
-                  value={v.basePrice}
-                  onChange={(e) => update(idx, { basePrice: Number(e.target.value) })}
-                />
               </div>
             </div>
             <div>
