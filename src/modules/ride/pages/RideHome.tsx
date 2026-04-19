@@ -4,10 +4,12 @@ import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet
 import L from "leaflet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ArrowLeft, MapPin, Search, Bike, Car, Users, Star, Phone, MessageCircle, X, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Search, Bike, Car, Users, Star, Phone, MessageCircle, X, CheckCircle2, Radio } from "lucide-react";
 import { POIS, RIDE_OPTIONS, DRIVERS, DEFAULT_LOCATION, distanceKm } from "../data/ride";
 import type { POI, RideOption } from "../data/ride";
+import { useLiveDriverPosition, findNearestOnlineDriver } from "../hooks/useLiveDriverPosition";
 
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
@@ -59,12 +61,33 @@ const RideHome = () => {
   const [selectedRide, setSelectedRide] = useState<RideOption | null>(null);
   const [driver] = useState(() => DRIVERS[Math.floor(Math.random() * DRIVERS.length)]);
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [liveDriverId, setLiveDriverId] = useState<string | null>(null);
+  const livePos = useLiveDriverPosition(liveDriverId);
+  const isLive = !!livePos;
 
   const distance = pickup && dest ? distanceKm(pickup, dest) : 0;
 
-  // Driver animation: move from random nearby spot toward pickup
+  // Saat masuk stage finding/matched, coba cari driver online di Supabase.
+  // Kalau ada → pakai posisi realtime; kalau tidak → fallback animasi mock.
   useEffect(() => {
-    if (stage !== "matched" || !pickup) return;
+    if (stage !== "finding" || !pickup) return;
+    let cancelled = false;
+    findNearestOnlineDriver(pickup).then((id) => {
+      if (!cancelled) setLiveDriverId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, pickup]);
+
+  // Sinkronkan posisi live ke marker
+  useEffect(() => {
+    if (livePos) setDriverPos({ lat: livePos.lat, lng: livePos.lng });
+  }, [livePos]);
+
+  // Driver animation (FALLBACK saat tidak ada driver live): move from random nearby spot toward pickup
+  useEffect(() => {
+    if (stage !== "matched" || !pickup || isLive) return;
     const start = { lat: pickup.lat + 0.012, lng: pickup.lng + 0.008 };
     setDriverPos(start);
     let t = 0;
@@ -84,9 +107,9 @@ const RideHome = () => {
     return () => clearInterval(interval);
   }, [stage, pickup]);
 
-  // Trip animation: move from pickup to dest
+  // Trip animation (FALLBACK saat tidak ada driver live): move from pickup to dest
   useEffect(() => {
-    if (stage !== "trip" || !pickup || !dest) return;
+    if (stage !== "trip" || !pickup || !dest || isLive) return;
     setDriverPos({ ...pickup });
     let t = 0;
     const interval = setInterval(() => {
@@ -283,9 +306,16 @@ const RideHome = () => {
         {/* MATCHED / TRIP */}
         {(stage === "matched" || stage === "trip") && (
           <Card className="rounded-t-2xl rounded-b-none border-b-0 shadow-elevated p-4">
-            <p className="text-xs font-medium text-primary mb-2">
-              {stage === "matched" ? "🚗 Driver dalam perjalanan menjemput" : "🛣️ Dalam perjalanan ke tujuan"}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-primary">
+                {stage === "matched" ? "🚗 Driver dalam perjalanan menjemput" : "🛣️ Dalam perjalanan ke tujuan"}
+              </p>
+              {isLive && (
+                <Badge variant="outline" className="bg-success/10 text-success border-success/30 gap-1 text-[10px]">
+                  <Radio className="h-3 w-3 animate-pulse" /> LIVE
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <img src={driver.photo} alt={driver.name} className="h-14 w-14 rounded-full object-cover" />
               <div className="flex-1">
