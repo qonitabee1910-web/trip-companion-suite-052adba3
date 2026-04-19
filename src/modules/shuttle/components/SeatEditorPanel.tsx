@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Wand2 } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
