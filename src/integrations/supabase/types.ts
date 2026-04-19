@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      depart_times: {
+        Row: {
+          id: string
+          sort_order: number
+          time: string
+        }
+        Insert: {
+          id?: string
+          sort_order?: number
+          time: string
+        }
+        Update: {
+          id?: string
+          sort_order?: number
+          time?: string
+        }
+        Relationships: []
+      }
       driver_locations: {
         Row: {
           driver_id: string
@@ -82,6 +100,173 @@ export type Database = {
         }
         Relationships: []
       }
+      hotel_bookings: {
+        Row: {
+          check_in: string
+          check_out: string
+          code: string
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string
+          guests: number
+          hotel_id: string
+          hotel_name: string
+          id: string
+          room_name: string
+          room_type_id: string | null
+          rooms: number
+          status: string
+          total_price: number
+        }
+        Insert: {
+          check_in: string
+          check_out: string
+          code: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          customer_phone: string
+          guests?: number
+          hotel_id: string
+          hotel_name: string
+          id?: string
+          room_name: string
+          room_type_id?: string | null
+          rooms?: number
+          status?: string
+          total_price?: number
+        }
+        Update: {
+          check_in?: string
+          check_out?: string
+          code?: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string
+          guests?: number
+          hotel_id?: string
+          hotel_name?: string
+          id?: string
+          room_name?: string
+          room_type_id?: string | null
+          rooms?: number
+          status?: string
+          total_price?: number
+        }
+        Relationships: []
+      }
+      hotels: {
+        Row: {
+          active: boolean
+          address: string
+          amenities: string[]
+          city: string
+          created_at: string
+          description: string
+          id: string
+          images: string[]
+          lat: number
+          lng: number
+          name: string
+          original_price: number | null
+          price_per_night: number
+          rating: number
+          review_count: number
+          sort_order: number
+          stars: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address: string
+          amenities?: string[]
+          city: string
+          created_at?: string
+          description?: string
+          id?: string
+          images?: string[]
+          lat?: number
+          lng?: number
+          name: string
+          original_price?: number | null
+          price_per_night?: number
+          rating?: number
+          review_count?: number
+          sort_order?: number
+          stars?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string
+          amenities?: string[]
+          city?: string
+          created_at?: string
+          description?: string
+          id?: string
+          images?: string[]
+          lat?: number
+          lng?: number
+          name?: string
+          original_price?: number | null
+          price_per_night?: number
+          rating?: number
+          review_count?: number
+          sort_order?: number
+          stars?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pickup_points: {
+        Row: {
+          code: string
+          created_at: string
+          distance_to_next: number
+          id: string
+          lat: number | null
+          lng: number | null
+          name: string
+          rayon_id: string
+          sort_order: number
+          time: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          distance_to_next?: number
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          name: string
+          rayon_id: string
+          sort_order?: number
+          time?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          distance_to_next?: number
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          name?: string
+          rayon_id?: string
+          sort_order?: number
+          time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pickup_points_rayon_id_fkey"
+            columns: ["rayon_id"]
+            isOneToOne: false
+            referencedRelation: "rayons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -105,6 +290,51 @@ export type Database = {
           id?: string
           phone?: string | null
           photo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rayons: {
+        Row: {
+          active: boolean
+          area: string
+          color: string
+          created_at: string
+          estimate_min: number
+          fare_per_km: number
+          id: string
+          name: string
+          per_pickup_fare: boolean
+          sort_order: number
+          surcharge: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          area: string
+          color?: string
+          created_at?: string
+          estimate_min?: number
+          fare_per_km?: number
+          id: string
+          name: string
+          per_pickup_fare?: boolean
+          sort_order?: number
+          surcharge?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          area?: string
+          color?: string
+          created_at?: string
+          estimate_min?: number
+          fare_per_km?: number
+          id?: string
+          name?: string
+          per_pickup_fare?: boolean
+          sort_order?: number
+          surcharge?: number
           updated_at?: string
         }
         Relationships: []
@@ -177,6 +407,233 @@ export type Database = {
           },
         ]
       }
+      room_types: {
+        Row: {
+          bed: string
+          breakfast: boolean
+          capacity: number
+          hotel_id: string
+          id: string
+          name: string
+          price: number
+          refundable: boolean
+          sort_order: number
+        }
+        Insert: {
+          bed?: string
+          breakfast?: boolean
+          capacity?: number
+          hotel_id: string
+          id?: string
+          name: string
+          price?: number
+          refundable?: boolean
+          sort_order?: number
+        }
+        Update: {
+          bed?: string
+          breakfast?: boolean
+          capacity?: number
+          hotel_id?: string
+          id?: string
+          name?: string
+          price?: number
+          refundable?: boolean
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_types_hotel_id_fkey"
+            columns: ["hotel_id"]
+            isOneToOne: false
+            referencedRelation: "hotels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seat_blocks: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          rayon_id: string
+          reason: string | null
+          seat_number: number
+          tier: string
+          time: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          rayon_id: string
+          reason?: string | null
+          seat_number: number
+          tier: string
+          time: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          rayon_id?: string
+          reason?: string | null
+          seat_number?: number
+          tier?: string
+          time?: string
+          vehicle_id?: string
+        }
+        Relationships: []
+      }
+      seat_layouts: {
+        Row: {
+          capacity: number
+          id: string
+          layout: Json
+          tier: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          capacity?: number
+          id?: string
+          layout: Json
+          tier: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          capacity?: number
+          id?: string
+          layout?: Json
+          tier?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          active: boolean
+          description: string
+          features: string[]
+          label: string
+          price_multiplier: number
+          sort_order: number
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          description?: string
+          features?: string[]
+          label: string
+          price_multiplier?: number
+          sort_order?: number
+          tier: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          description?: string
+          features?: string[]
+          label?: string
+          price_multiplier?: number
+          sort_order?: number
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shuttle_bookings: {
+        Row: {
+          code: string
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string
+          date: string
+          id: string
+          pax: number
+          pickup: string
+          rayon_id: string
+          rayon_name: string
+          seats: number[]
+          service_label: string
+          service_tier: string
+          status: string
+          time: string
+          total_price: number
+          unit_price: number
+          vehicle_id: string
+          vehicle_label: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          customer_phone: string
+          date: string
+          id?: string
+          pax?: number
+          pickup: string
+          rayon_id: string
+          rayon_name: string
+          seats?: number[]
+          service_label: string
+          service_tier: string
+          status?: string
+          time: string
+          total_price?: number
+          unit_price?: number
+          vehicle_id: string
+          vehicle_label: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string
+          date?: string
+          id?: string
+          pax?: number
+          pickup?: string
+          rayon_id?: string
+          rayon_name?: string
+          seats?: number[]
+          service_label?: string
+          service_tier?: string
+          status?: string
+          time?: string
+          total_price?: number
+          unit_price?: number
+          vehicle_id?: string
+          vehicle_label?: string
+        }
+        Relationships: []
+      }
+      shuttle_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       shuttle_trips: {
         Row: {
           created_at: string
@@ -236,6 +693,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      vehicle_types: {
+        Row: {
+          active: boolean
+          description: string
+          id: string
+          label: string
+          sort_order: number
+          tier_prices: Json
+          updated_at: string
+          vehicle_name: string
+        }
+        Insert: {
+          active?: boolean
+          description?: string
+          id: string
+          label: string
+          sort_order?: number
+          tier_prices?: Json
+          updated_at?: string
+          vehicle_name: string
+        }
+        Update: {
+          active?: boolean
+          description?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          tier_prices?: Json
+          updated_at?: string
+          vehicle_name?: string
         }
         Relationships: []
       }
