@@ -95,22 +95,14 @@ export const VEHICLE_TYPES: VehicleType[] = [
   },
 ];
 
-function readLS<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+import { cloudCache as _cc } from "./cloudStore";
 
 export function getService(tier: string): ServiceConfig | undefined {
-  return readLS<ServiceConfig[]>("shuttle-admin:services", SERVICES).find((s) => s.tier === tier);
+  return _cc.services.find((s) => s.tier === tier);
 }
 
 export function getVehicleType(id: string): VehicleType | undefined {
-  return readLS<VehicleType[]>("shuttle-admin:vehicles", VEHICLE_TYPES).find((v) => v.id === id);
+  return _cc.vehicles.find((v) => v.id === id);
 }
 
 /**

@@ -216,51 +216,21 @@ export function getPickupNames(rayon: Rayon): string[] {
     .map((p) => p.name);
 }
 
+// NOTE: getRayon/getDestination/getContent now read from cloudCache (Supabase-backed).
+// Imports are deferred via dynamic import-style require to avoid circular imports
+// between rayons.ts and cloudStore.ts at module evaluation time.
+import { cloudCache as _cc } from "./cloudStore";
+
 export function getRayon(id: string): Rayon | undefined {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem("shuttle-admin:rayons");
-      if (raw) {
-        const list = (JSON.parse(raw) as LegacyRayon[]).map(migrateRayon);
-        const found = list.find((r) => r.id.toUpperCase() === id.toUpperCase());
-        if (found) {
-          // Merge coordinates from seed if admin override is missing them
-          const seed = RAYONS.find((r) => r.id.toUpperCase() === id.toUpperCase());
-          if (seed) {
-            found.pickupPoints = found.pickupPoints.map((p) => {
-              if (p.lat != null && p.lng != null) return p;
-              const sp = seed.pickupPoints.find((s) => s.code === p.code || s.name === p.name);
-              return sp ? { ...p, lat: p.lat ?? sp.lat, lng: p.lng ?? sp.lng } : p;
-            });
-          }
-          return found;
-        }
-      }
-    } catch {
-      /* fallthrough */
-    }
-  }
-  return RAYONS.find((r) => r.id.toUpperCase() === id.toUpperCase());
+  return _cc.rayons.find((r) => r.id.toUpperCase() === id.toUpperCase());
 }
 
 export function getDestination(): Destination {
-  if (typeof window === "undefined") return DEFAULT_DESTINATION;
-  try {
-    const raw = localStorage.getItem("shuttle-admin:destination");
-    return raw ? { ...DEFAULT_DESTINATION, ...(JSON.parse(raw) as Partial<Destination>) } : DEFAULT_DESTINATION;
-  } catch {
-    return DEFAULT_DESTINATION;
-  }
+  return _cc.destination;
 }
 
 export function getContent(): ShuttleContent {
-  if (typeof window === "undefined") return DEFAULT_CONTENT;
-  try {
-    const raw = localStorage.getItem("shuttle-admin:content");
-    return raw ? { ...DEFAULT_CONTENT, ...(JSON.parse(raw) as Partial<ShuttleContent>) } : DEFAULT_CONTENT;
-  } catch {
-    return DEFAULT_CONTENT;
-  }
+  return _cc.content;
 }
 
 // ---------- Schedule helpers ----------
