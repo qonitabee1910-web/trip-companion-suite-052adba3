@@ -66,6 +66,7 @@ const cache: Cache = {
   bookings: [],
   seatBlocks: [],
   hotels: [],
+  seatLayouts: {},
   hydrated: false,
 };
 
