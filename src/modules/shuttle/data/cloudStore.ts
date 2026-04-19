@@ -551,3 +551,52 @@ export async function setBlockedSeatsCloud(slot: {
     );
   notify();
 }
+
+// ============== Seat Layouts ==============
+/**
+ * Decode a LayoutKey (e.g. "HIACE_REGULER", "SUV_SEMI", "MINICAR_EXEC")
+ * into the DB's vehicle_id (lowercase) + tier columns.
+ */
+function decodeLayoutKey(key: string): { vehicleId: string; tier: string } {
+  const parts = key.split("_");
+  const v = (parts[0] || "").toLowerCase();
+  const suffix = parts[1] || "REGULER";
+  const tier =
+    suffix === "EXEC" ? "executive" : suffix === "SEMI" ? "semi-executive" : "reguler";
+  return { vehicleId: v, tier };
+}
+
+export async function persistSeatLayout(
+  layoutKey: string,
+  payload: Partial<SeatLayoutConfig>,
+): Promise<void> {
+  const { vehicleId, tier } = decodeLayoutKey(layoutKey);
+  const capacity = payload.seats?.length ?? 0;
+  await supabase
+    .from("seat_layouts")
+    .delete()
+    .eq("vehicle_id", vehicleId)
+    .eq("tier", tier);
+  const { error } = await supabase.from("seat_layouts").insert({
+    vehicle_id: vehicleId,
+    tier,
+    layout: payload as any,
+    capacity,
+  });
+  if (error) throw error;
+  cache.seatLayouts = { ...cache.seatLayouts, [layoutKey]: payload };
+  notify();
+}
+
+export async function clearSeatLayoutCloud(layoutKey: string): Promise<void> {
+  const { vehicleId, tier } = decodeLayoutKey(layoutKey);
+  await supabase
+    .from("seat_layouts")
+    .delete()
+    .eq("vehicle_id", vehicleId)
+    .eq("tier", tier);
+  const next = { ...cache.seatLayouts };
+  delete next[layoutKey];
+  cache.seatLayouts = next;
+  notify();
+}
