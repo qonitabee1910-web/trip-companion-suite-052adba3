@@ -1,123 +1,166 @@
 
 
-# Plan: Driver App Module untuk PYU-GO
+## Analisis Proyek & Plan Integrasi Database
+<lov-tool-use id="toolu_vrtx_01UR3NiaJ63mN3etRMMd81Fk" name="code--view" integration-id="code" data="{\"file_path\": \"src/shared/modules.ts\"}">
+</lov-tool-use>
 
-## Konsep
+<lov-tool-use id="toolu_vrtx_014vcSPWDvGwLhS5LmjGodwJ" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/types/booking.ts\"}">
+</lov-tool-use>
 
-Module Driver baru di `/driver` untuk mitra pengemudi PYU-GO yang bisa terima request **Ride** (real-time) dan menjalankan **Shuttle Trip** sesuai jadwal. Realtime via Supabase Postgres Changes + driver location update tiap 5 detik.
+<lov-tool-use id="toolu_vrtx_01BvoW7XLfVwo9d4ebwtDrBt" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/data/rayons.ts\", \"lines\": \"1-80\"}">
+</lov-tool-use>
 
-## Prasyarat: Lovable Cloud
+<lov-tool-use id="toolu_vrtx_015tCVJLmK2EEeHP37voaaU6" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/data/services.ts\", \"lines\": \"1-80\"}">
+</lov-tool-use>
 
-Module ini butuh backend (auth driver, tabel rides + driver_locations, realtime channel). Akan **aktifkan Lovable Cloud** dan buat schema. Tidak perlu API key eksternal.
+<lov-tool-use id="toolu_vrtx_01Eum681ZKFGRe2i996xZgs1" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/hotel/types.ts\"}">
+</lov-tool-use>
 
-## Database Schema (migrations)
+<lov-tool-use id="toolu_vrtx_01DcTABhUTN748rW5WRj3Nen" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/data/inventory.ts\", \"lines\": \"1-60\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_01UaTLi4dQfpcepm9zfiADHB" name="code--view" integration-id="code" data="{\"file_path\": \"src/App.tsx\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_01LoRb9SwHsiwMchgndKpNUo" name="code--view" integration-id="code" data="{\"file_path\": \"src/shared/modules.ts\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_019PCEF9buHL6nqNpvam3QzL" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/types/booking.ts\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_017qZd8Vetq4ZBDVRJwjjGCR" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/hotel/types.ts\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_01CxQh9Ca2T2WUgB6w4JRx93" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/data/rayons.ts\", \"lines\": \"1-100\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_011iDNFaVpAs1DPjUgWsi6Mh" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/data/services.ts\", \"lines\": \"1-120\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_01MEPUYbNCsxXvNMEkQ1uKFo" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/shuttle/data/inventory.ts\"}">
+</lov-tool-use>
+
+<lov-tool-use id="toolu_vrtx_017MPCMQbkSADbQ88VKj9apu" name="code--view" integration-id="code" data="{\"file_path\": \"src/modules/hotel/data/hotels.ts\", \"lines\": \"1-50\"}">
+</lov-tool-use>
+<lov-plan>
+
+# Plan: Migrasi Data Project ke Database (Lovable Cloud)
+
+## Analisis Status Saat Ini
+
+Database sudah aktif dengan tabel **driver-side** (`profiles`, `user_roles`, `drivers`, `driver_locations`, `rides`, `shuttle_trips`). Namun **mayoritas data project masih di localStorage / hardcoded TS**:
+
+| Domain | Lokasi sekarang | Status DB |
+|---|---|---|
+| Shuttle: rayons + pickup points | `rayons.ts` + localStorage `shuttle-admin:rayons` | belum |
+| Shuttle: services (tier) | `services.ts` + localStorage | belum |
+| Shuttle: vehicle types + tierPrices | `services.ts` + localStorage | belum |
+| Shuttle: seat layouts | `seatLayouts.ts` + localStorage | belum |
+| Shuttle: bookings | localStorage `shuttle-admin:bookings` | belum |
+| Shuttle: inventory blocked seats | localStorage | belum |
+| Shuttle: depart times, destination, content | localStorage | belum |
+| Hotels (katalog + rooms) | `hotels.ts` hardcoded | belum |
+| Hotel bookings | tidak ada | belum |
+| Rides table | sudah di DB | ✓ |
+| Shuttle_trips | sudah di DB (kosong, belum dipakai admin) | ✓ |
+
+Masalah: data hanya hidup di browser tiap user → tidak bisa share antar device, admin & customer lihat data berbeda, refresh kadang hilang.
+
+## Tujuan
+
+Pindahkan **semua data persisten** (yang saat ini di localStorage / hardcoded) ke database Lovable Cloud, dengan RLS yang aman, dan seed default agar app langsung bisa dipakai.
+
+## Schema Baru yang Akan Dibuat
 
 ```text
-profiles              (id uuid PK = auth.users.id, full_name, phone, photo_url)
-user_roles            (user_id, role enum: 'driver'|'rider'|'admin')  -- pakai pattern has_role
-drivers               (id uuid PK = auth.users.id, vehicle_type, plate, rating, is_online bool, current_lat, current_lng, updated_at)
-driver_locations      (id, driver_id, lat, lng, heading, recorded_at)  -- log/history
-rides                 (id, rider_id, driver_id nullable, status enum:
-                       'pending'|'accepted'|'rejected'|'arriving'|'in_progress'|'completed'|'cancelled',
-                       pickup_lat, pickup_lng, pickup_name,
-                       dest_lat, dest_lng, dest_name,
-                       ride_type, fare, distance_km,
-                       requested_at, accepted_at, started_at, completed_at)
-shuttle_trips         (id, driver_id, rayon_id, vehicle_id, service_tier,
-                       depart_at, status enum: 'scheduled'|'boarding'|'in_progress'|'completed'|'cancelled',
-                       current_pickup_index int)
+-- SHUTTLE master data (admin-managed, public read)
+rayons              (id text PK, name, area, color, estimate_min, surcharge, fare_per_km, sort_order, active)
+pickup_points       (id uuid, rayon_id FK, code, name, time, distance_to_next, lat, lng, sort_order)
+services            (tier text PK, label, description, price_multiplier, features text[], active)
+vehicle_types       (id text PK, label, vehicle_name, description, tier_prices jsonb, active)
+seat_layouts        (id uuid, vehicle_id, tier, layout jsonb, capacity, base_price, updated_at)
+                    UNIQUE(vehicle_id, tier)
+depart_times        (id uuid, time text, sort_order)
+shuttle_settings    (key text PK, value jsonb)   -- destination, content, dll (single-row pattern)
+
+-- SHUTTLE transactional
+shuttle_bookings    (id uuid, code text unique, rayon_id, pickup, date, time, vehicle_id,
+                     service_tier, seats int[], pax, unit_price, total_price,
+                     customer_name, customer_phone, customer_id uuid null, status, created_at)
+seat_blocks         (id uuid, date, time, rayon_id, vehicle_id, tier, seat_number int, reason)
+
+-- HOTEL master + transactional
+hotels              (id uuid, name, city, address, stars, rating, review_count, price_per_night,
+                     original_price, images text[], amenities text[], description, lat, lng, active)
+room_types          (id uuid, hotel_id FK, name, capacity, bed, price, breakfast, refundable, sort_order)
+hotel_bookings      (id uuid, code, hotel_id, room_type_id, check_in, check_out, guests, rooms,
+                     customer_name, customer_phone, customer_id uuid null, total_price, status, created_at)
 ```
 
-RLS:
-- Driver bisa SELECT/UPDATE rides di mana `driver_id = auth.uid()` ATAU status='pending' (untuk lihat request masuk).
-- Driver bisa UPDATE drivers row sendiri.
-- Driver INSERT driver_locations row sendiri.
-- Realtime publication ON untuk `rides` dan `drivers`.
+### RLS Strategy
 
-## Struktur File
+- **Master data (rayons, pickup_points, services, vehicle_types, seat_layouts, depart_times, shuttle_settings, hotels, room_types)**: SELECT publik (`true`) supaya guest bisa browse/booking. INSERT/UPDATE/DELETE hanya `has_role('admin')`.
+- **shuttle_bookings, hotel_bookings**: 
+  - INSERT publik (guest checkout) — validasi field via trigger.
+  - SELECT: admin semua; user lihat by `customer_phone` lookup atau `customer_id = auth.uid()`.
+  - UPDATE/DELETE: admin only (cancel oleh user via UPDATE status saja kalau `customer_id = auth.uid()`).
+- **seat_blocks**: SELECT publik (untuk seat map), write admin only.
 
-```text
-src/modules/driver/
-├── pages/
-│   ├── DriverHome.tsx          # online toggle, map, status, daftar trip aktif
-│   ├── DriverLogin.tsx         # email/password login (Lovable Cloud auth)
-│   ├── DriverRideRequest.tsx   # modal/screen untuk incoming ride (accept/reject)
-│   ├── DriverActiveRide.tsx    # navigation pickup → trip → complete
-│   └── DriverShuttleTrip.tsx   # daftar shuttle trip + start/complete per pickup
-├── components/
-│   ├── OnlineToggle.tsx
-│   ├── DriverMap.tsx           # Leaflet, marker driver + pickup/dest
-│   └── IncomingRideSheet.tsx   # bottom sheet auto-muncul saat ada request
-├── hooks/
-│   ├── useDriverLocation.ts    # geolocation watcher + push ke Supabase /5s
-│   ├── useIncomingRides.ts     # realtime subscribe rides where status=pending
-│   └── useActiveRide.ts        # subscribe perubahan ride driver
-└── data/
-    └── driver.ts               # types + helpers
-```
+### Seeding
 
-Routes baru di `App.tsx`:
-- `/driver/login`
-- `/driver` (home, protected)
-- `/driver/ride/:id`
-- `/driver/shuttle/:id`
+Migration menyertakan seed default dari file TS saat ini:
+- `SEED_RAYONS_PYUGO` (5 rayons + ~80 pickup points)
+- `SERVICES` (3 tier)
+- `VEHICLE_TYPES` (3 vehicles dengan tierPrices)
+- `LAYOUT_PRESETS` per (vehicle × tier)
+- `DEPART_TIMES`
+- `HOTELS` + rooms
+- `DEFAULT_DESTINATION`, `DEFAULT_CONTENT` di `shuttle_settings`
 
-Tambah modul "Driver" ke `src/shared/modules.ts`.
+## Refactor Code
 
-## Realtime Strategy
+### Repository pattern (async)
 
-**Incoming requests** (`useIncomingRides`):
+Convert sync localStorage helpers di `src/modules/shuttle/data/repository.ts` → **async functions** yang query Supabase. Contoh:
 ```ts
-supabase.channel('driver-incoming')
-  .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'rides', filter: 'status=eq.pending' },
-      handleNewRide)
-  .subscribe();
+export async function getRayons(): Promise<Rayon[]> { ... supabase.from('rayons').select(...) }
+export async function addBooking(b): Promise<ShuttleBooking> { ... supabase.from('shuttle_bookings').insert(...) }
 ```
-Filter klien tambahan: jarak driver ↔ pickup < 5km.
+Tambah `useRayons()`, `useBookings()`, dll. hooks dengan React Query untuk caching + realtime.
 
-**Active ride** (`useActiveRide`): subscribe UPDATE pada row ride spesifik (status changes oleh rider/cancel).
+### Hotel repo baru
+Buat `src/modules/hotel/data/repository.ts` paralel — replace hardcoded `HOTELS` import.
 
-**Location push** (`useDriverLocation`):
-- `navigator.geolocation.watchPosition`
-- Throttle: kirim ke `drivers` table + insert `driver_locations` setiap 5 detik (hanya saat `is_online=true`).
-- Saat sedang `in_progress` ride, frequency naik jadi 3 detik.
+### UI updates
+- Halaman admin (`AdminRayons`, `AdminServices`, `AdminVehicles`, `AdminBookings`, `AdminInventory`, `AdminShuttleContent`, `AdminSeatEditor`) → switch ke async fetch + mutate.
+- Halaman customer (`ShuttleHome`, `ShuttleSearch`, `ShuttleRayon`, `ShuttleVehicle`, `ShuttleService`, `ShuttleBooking`, `HotelHome`, `HotelSearch`, `HotelDetail`, `HotelBooking`) → fetch dari DB.
+- Loading & error states (skeleton + toast).
+- File `rayons.ts`, `services.ts`, `seatLayouts.ts`, `hotels.ts` tetap dipertahankan sebagai **types + seed source** (dipakai migration & fallback dev), tapi tidak lagi jadi runtime store.
 
-## UI Screens
+### Migrasi data localStorage existing
+Tambah util one-shot `migrateLocalToCloud()` di admin panel (tombol "Sinkronkan data lokal"). Karena saat ini belum ada user real, opsional — bisa dilewati.
 
-1. **DriverHome**: Map fullscreen, header dengan foto+nama+rating, **toggle Online/Offline besar** di bawah, statistik hari ini (trip count, earnings mock), banner "Menunggu request..." saat online.
-2. **IncomingRideSheet**: Auto-popup bottom sheet — pickup, dest, jarak, fare, countdown 15s, tombol **Tolak** & **Terima** (besar, hijau).
-3. **DriverActiveRide**: 3 phase
-   - *Menjemput*: tombol "Sudah sampai" → status `arriving`
-   - *Mulai trip*: tombol "Mulai Perjalanan" → `in_progress`
-   - *Selesai*: tombol "Selesaikan" → `completed`, summary fare.
-4. **DriverShuttleTrip**: Daftar pickup point dengan tombol "Tiba di [titik]" / "Berangkat ke titik berikutnya", final "Selesai trip".
-5. **DriverLogin**: Email+password, default redirect ke `/driver`.
+## Dependency Tambahan
 
-## Map Component
+Tidak perlu library baru — `@supabase/supabase-js` sudah ada. Akan tambah `@tanstack/react-query` provider kalau belum ada (cek `App.tsx` — sudah ada `QueryClientProvider`, jadi reuse).
 
-`DriverMap.tsx` reuse pattern dari `RideHome.tsx` & `MiniMap.tsx`:
-- Marker driver (icon mobil) di posisi current.
-- Saat ada active ride: marker pickup + dest + polyline.
-- Auto-center ke driver.
+## Yang TIDAK Termasuk
 
-## Auth & Roles
+- Hotel booking flow penuh dengan payment (hanya simpan booking).
+- Migrasi otomatis data localStorage user (manual button saja).
+- Multi-tenant / multi-city scope.
+- File storage (gambar hotel tetap pakai URL Unsplash).
 
-- Saat signup, user dapat row di `profiles` (via trigger).
-- Admin assign role 'driver' manual (atau seed 1 driver). Halaman driver gate: cek `has_role(uid, 'driver')` else redirect login.
-- Saat aktifkan online, insert/update row `drivers` (PK = uid).
+## Urutan Implementasi
 
-## Fare & Konsistensi
-
-Reuse `RIDE_OPTIONS` dari `src/modules/ride/data/ride.ts` untuk hitung fare di rider side. Server simpan fare final saat ride dibuat.
-
-## Yang Tidak Termasuk (out of scope)
-
-- Rider app yang membuat ride (akan ada seed manual via admin / SQL untuk test).
-- Push notification native (cuma in-app realtime).
-- Pembayaran. Tracking earnings hanya tampilan agregat dari `rides.completed`.
+1. **Migration SQL** — buat semua tabel + RLS + seed data.
+2. **Repository async** — refactor `shuttle/data/repository.ts` + buat `hotel/data/repository.ts`.
+3. **React Query hooks** — `useRayons`, `useBookings`, `useHotels`, dst.
+4. **Refactor halaman admin** satu per satu (rayons → services → vehicles → seat-editor → bookings → inventory → content).
+5. **Refactor halaman customer** (shuttle flow → hotel flow).
+6. **QA**: buka flow booking shuttle dari guest, cek admin lihat booking yang sama, cek edit rayon dari admin langsung muncul di customer.
 
 ## Hasil
 
-Driver buka `/driver/login`, login → `/driver`, toggle Online → location mulai dipush ke Supabase tiap 5s → ketika ada ride pending dalam radius, sheet muncul → terima → navigation ke pickup → mulai trip → selesai. Untuk shuttle, daftar trip terjadwal hari ini muncul di tab Shuttle dengan flow per-pickup.
+Semua data shared, persisten di cloud. Admin di laptop edit rayon → customer di HP langsung lihat. Booking guest masuk ke DB dan tampil di `/admin/shuttle/bookings`. Hotel & rooms editable lewat DB (bisa lanjut ke admin hotel page nanti). Driver app tetap jalan seperti sekarang.
 
