@@ -1,60 +1,20 @@
 
 
-# Plan: Geocoding Pencarian Alamat (Nominatim OSM) di Editor Koordinat
+# Plan: Pindahkan Kapasitas Kursi dari Vehicles ke Seat Editor + Hapus Harga Dasar
 
-## Konsep
-Tambahkan search box di `PickupCoordinateMap.tsx` yang query Nominatim OSM (gratis, no API key) untuk cari alamat → tampilkan hasil dropdown → klik hasil = set lat/lng ke titik aktif (sama seperti klik peta) + pan map ke lokasi.
+## Analisis Singkat
 
-## API Nominatim
-- Endpoint: `https://nominatim.openstreetmap.org/search?format=json&q={query}&limit=5&countrycodes=id`
-- Free, no key. Wajib User-Agent header (browser auto-set sudah cukup untuk usage rendah).
-- Rate limit: 1 req/sec → debounce input 500ms.
-- Response: `[{ display_name, lat, lon, ... }]`.
+**Saat ini di `/admin/shuttle/vehicles`:**
+- `VehicleType` punya `totalSeats` (kapasitas) & `basePrice` (harga dasar) — keduanya jadi sumber inkonsistensi karena seat layout di seat-editor punya jumlah kursi sendiri (count of seats di layout).
 
-## UI di `PickupCoordinateMap.tsx`
+**Yang user inginkan:**
+- Hapus input "Kapasitas Kursi" & "Harga Dasar" dari `/admin/shuttle/vehicles`.
+- Pindahkan kapasitas kursi ke `/admin/shuttle/seat-editor` (per kombinasi vehicle × tier), sehingga **kapasitas = jumlah kursi di layout** (sumber tunggal).
+- Fare calculation konsisten di semua tempat.
 
-Tambahkan **search bar di atas peta** (di samping banner capture mode):
-- Input dengan placeholder "Cari alamat... (cth: Hermes Palace Medan)"
-- Icon Search di kiri, tombol X clear di kanan saat ada query
-- Loading spinner saat fetching
-- Dropdown hasil (max 5) muncul di bawah input:
-  - Tiap item: nama (bold) + display_name lengkap (kecil, muted) + koordinat
-  - Klik → panggil `onCapture(activeCode, lat, lon)` jika ada `activeCode`, else hanya pan map ke lokasi + buka prompt "Pilih titik dulu di tabel untuk capture"
-- Keyboard: Enter pilih hasil pertama, Esc tutup dropdown
+## Pertanyaan Klarifikasi (perlu dijawab sebelum implement)
+<lov-tool-use id="toolu_vrtx_01C9UdCJ56ndffaN8bxrDHGp" name="questions--ask_questions" requires-approval="true" integration-id="questions" data="{\"questions\": [{\"header\":\"Harga Dasar\",\"question\":\"Harga Dasar (basePrice) saat ini dihapus dari Vehicles. Di mana sebaiknya harga ditentukan agar fare calculation tetap jalan?\",\"options\":[{\"label\":\"Pindah ke Seat Editor per (vehicle × tier)\",\"description\":\"Tiap kombinasi kendaraan + service punya harga sendiri. Paling fleksibel, cocok karena exec biasanya lebih mahal dari reguler.\"},{\"label\":\"Pindah ke Service Tiers\",\"description\":\"Harga ditentukan per tier (reguler/semi/exec) saja, sama untuk semua kendaraan.\"},{\"label\":\"Tetap ada di Vehicles, hanya hapus 'Kapasitas Kursi'\",\"description\":\"Harga dasar tetap di Vehicles, hanya kapasitas yang dipindah ke seat editor.\"}],\"multiSelect\":false,\"allowOther\":true},{\"header\":\"Field kapasitas di Seat Editor\",\"question\":\"Bagaimana cara field 'Kapasitas Kursi' bekerja di Seat Editor?\",\"options\":[{\"label\":\"Read-only (auto = jumlah kursi di layout)\",\"description\":\"Tampilkan jumlah kursi yang sudah didrag di layout. Tidak bisa diedit manual — kapasitas selalu = layout aktual. Paling konsisten.\"},{\"label\":\"Editable, validasi harus = jumlah kursi\",\"description\":\"Admin set angka target, dan disable Save kalau jumlah kursi di layout belum cocok.\"},{\"label\":\"Editable bebas, independen dari layout\",\"description\":\"Admin bisa set angka apapun, layout & kapasitas terpisah.\"}],\"multiSelect\":false,\"allowOther\":true}]}">
+</lov-tool-use>
 
-## Behavior
-- Debounce 500ms sebelum fetch
-- Min 3 karakter sebelum query
-- Bila tidak ada `activeCode`, hasil klik tetap pan map (preview) tapi toast info "Pilih baris dengan tombol crosshair dulu untuk capture koordinat"
-- Append " Medan" otomatis bila query tidak mengandung kota? **TIDAK** — biarkan user kontrol penuh, mungkin admin cari di luar Medan
-- Setelah capture sukses, clear search box
-
-## State Baru
-```tsx
-const [query, setQuery] = useState("");
-const [results, setResults] = useState<NominatimResult[]>([]);
-const [loading, setLoading] = useState(false);
-const [open, setOpen] = useState(false);
-```
-
-Effect dengan `setTimeout` 500ms untuk debounce fetch.
-
-## File Changes
-
-**EDIT:** `src/modules/shuttle/components/RayonRouteMap.tsx`? **TIDAK.** Editor admin pakai `PickupCoordinateMap.tsx`.
-
-**EDIT:** `src/modules/admin/components/PickupCoordinateMap.tsx` — tambah search bar + Nominatim fetch + dropdown hasil + handler klik hasil.
-
-Tidak perlu edit `AdminRayons.tsx` — handler `onCapture` sudah ada dan dipakai ulang.
-
-## UX Flow
-1. Admin edit Rayon A, klik crosshair J3 (Cambridge).
-2. Banner: "Klik di peta untuk set koordinat J3 - Cambridge".
-3. Admin ketik "Cambridge Hotel Medan" di search box.
-4. Setelah 500ms muncul 3 hasil dari Nominatim.
-5. Klik hasil pertama → lat/lng terisi di tabel J3, marker muncul di peta, auto-advance ke J4, search box clear.
-6. Lanjut ketik nama hotel berikutnya untuk J4, dst.
-
-## Hasil
-Admin bisa isi 14 titik tanpa harus tau koordinat manual maupun klik di peta secara akurat — cukup ketik nama hotel/landmark. Workflow jauh lebih cepat untuk admin yang tidak familiar dengan map navigation.
-
+<lov-tool-use id="toolu_vrtx_01VmnCiVMSPgFVQsrnv6FhaQ" name="questions--ask_questions" requires-approval="true" integration-id="questions" data="{\"questions\": [{\"allowOther\":true,\"header\":\"Harga Dasar\",\"multiSelect\":false,\"options\":[{\"description\":\"Tiap kombinasi kendaraan + service punya harga sendiri. Cocok karena exec biasanya lebih mahal dari reguler.\",\"label\":\"Pindah ke Seat Editor per (vehicle × tier)\"},{\"description\":\"Harga ditentukan per tier (reguler/semi/exec) saja, sama untuk semua kendaraan.\",\"label\":\"Pindah ke Service Tiers\"},{\"description\":\"Harga dasar tetap di Vehicles, hanya kapasitas yang dipindah ke seat editor.\",\"label\":\"Tetap ada di Vehicles, hanya hapus 'Kapasitas Kursi'\"}],\"question\":\"Harga Dasar (basePrice) — di mana sebaiknya ditentukan agar fare calculation tetap jalan?\"},{\"allowOther\":true,\"header\":\"Field kapasitas di Seat Editor\",\"multiSelect\":false,\"options\":[{\"description\":\"Tampilkan jumlah kursi di layout. Tidak bisa diedit manual — kapasitas selalu = layout aktual. Paling konsisten.\",\"label\":\"Read-only (auto = jumlah kursi di layout)\"},{\"description\":\"Admin set angka target, dan disable Save kalau jumlah kursi di layout belum cocok.\",\"label\":\"Editable, validasi harus = jumlah kursi\"},{\"description\":\"Admin bisa set angka apapun, layout & kapasitas terpisah.\",\"label\":\"Editable bebas, independen dari layout\"}],\"question\":\"Bagaimana cara field 'Kapasitas Kursi' bekerja di Seat Editor?\"}]}">
+</lov-tool-use>
