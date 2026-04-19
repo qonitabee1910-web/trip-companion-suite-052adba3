@@ -7,9 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Route } from "lucide-react";
 import { SeatMap } from "../components/SeatMap";
-import { getService, getVehicleType, calcPrice, SERVICES, VEHICLE_TYPES } from "../data/services";
+import { getService, getVehicleType, calcFareBreakdown, SERVICES, VEHICLE_TYPES } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { addBooking } from "../data/repository";
 import { getOccupiedSeats } from "../data/inventory";
@@ -23,7 +23,9 @@ const ShuttleBooking = () => {
   const DESTINATION = getDestination();
   const service = getService(params.get("service") || "reguler") || SERVICES[0];
   const vehicle = getVehicleType(params.get("vehicle") || "hiace") || VEHICLE_TYPES[0];
-  const pickup = params.get("pickup") || rayon?.pickupPoints[0] || "";
+  const pickupCode = params.get("pickup") || rayon?.pickupPoints?.find((p) => p.code !== "DEST")?.code || "";
+  const pickupPoint = rayon?.pickupPoints?.find((p) => p.code === pickupCode);
+  const pickupName = pickupPoint?.name || pickupCode;
   const time = params.get("time") || "06:00";
   const pax = Number(params.get("pax") || 1);
   const dateStr = params.get("date") || "";
@@ -49,12 +51,16 @@ const ShuttleBooking = () => {
   const [form, setForm] = useState({ name: "", phone: "" });
   const [bookingId, setBookingId] = useState<string>("");
 
+  const breakdown = calcFareBreakdown(vehicle, service, rayon, pickupCode);
+  const unitPrice = breakdown.total;
+  const total = unitPrice * pax;
+
   const handlePay = () => {
     if (!form.name || !form.phone) return;
     const created = addBooking({
       rayonId: rayon?.id || "A",
       rayonName: `${rayon?.name ?? ""} (${rayon?.area ?? ""})`,
-      pickup,
+      pickup: pickupName,
       date: dateStr,
       time,
       vehicleId: vehicle.id,
@@ -79,9 +85,6 @@ const ShuttleBooking = () => {
     );
   };
 
-  const unitPrice = calcPrice(vehicle, service, rayon);
-  const total = unitPrice * pax;
-
   if (step === "success") {
     return (
       <ResponsiveLayout mobileTitle="E-Ticket" mobileBack="/" hideBottomNav mobileHeaderVariant="plain">
@@ -99,7 +102,7 @@ const ShuttleBooking = () => {
               <div className="flex justify-between"><span>Kendaraan</span><span className="font-medium">{vehicle.label} • {vehicle.vehicleName}</span></div>
               <div className="flex justify-between"><span>Tanggal</span><span className="font-medium">{dateLabel}</span></div>
               <div className="flex justify-between"><span>Berangkat</span><span className="font-medium">{time}</span></div>
-              <div className="flex justify-between"><span>Jemput</span><span className="font-medium">{pickup}</span></div>
+              <div className="flex justify-between"><span>Jemput</span><span className="font-medium">{pickupName}</span></div>
               <div className="flex justify-between"><span>Kursi</span><span className="font-medium">{selectedSeats.join(", ")}</span></div>
               <div className="flex justify-between pt-2 border-t font-bold"><span>Total</span><span className="text-accent">Rp{total.toLocaleString("id-ID")}</span></div>
             </div>
@@ -145,7 +148,7 @@ const ShuttleBooking = () => {
     >
       <div className="container max-w-3xl py-4 md:py-8 px-3 md:px-6 space-y-4">
         <StepperHeader current="seat" />
-        <div className="grid md:grid-cols-[1fr_300px] gap-4">
+        <div className="grid md:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
           <Card className="p-4">
             <h2 className="font-semibold mb-1">Pilih Kursi ({selectedSeats.length}/{pax})</h2>
@@ -168,7 +171,7 @@ const ShuttleBooking = () => {
           <h3 className="font-semibold mb-3">Ringkasan</h3>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Rayon</span><span className="font-medium">{rayon?.name}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Jemput</span><span className="font-medium truncate ml-2">{pickup}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Jemput</span><span className="font-medium truncate ml-2">{pickupName}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Tujuan</span><span className="font-medium">{DESTINATION.short}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Service</span><span className="font-medium">{service.label}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Kendaraan</span><span className="font-medium">{vehicle.label}</span></div>
@@ -176,8 +179,40 @@ const ShuttleBooking = () => {
             <div className="flex justify-between"><span className="text-muted-foreground">Berangkat</span><span className="font-medium">{time}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Penumpang</span><span className="font-medium">{pax}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Kursi</span><span className="font-medium">{selectedSeats.join(", ") || "-"}</span></div>
-            <div className="flex justify-between pt-2 border-t mt-2 font-bold"><span>Total</span><span className="text-accent">Rp{total.toLocaleString("id-ID")}</span></div>
           </div>
+
+          {/* Fare breakdown */}
+          <div className="mt-3 pt-3 border-t space-y-1 text-xs">
+            <div className="flex items-center gap-1 text-muted-foreground mb-1">
+              <Route className="h-3 w-3" />
+              <span>Rincian tarif</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Jarak {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × Rp{breakdown.farePerKm.toLocaleString("id-ID")}
+              </span>
+              <span>Rp{Math.round(breakdown.distanceFare).toLocaleString("id-ID")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Multiplier {service.label} ×{breakdown.multiplier}</span>
+              <span>Rp{Math.round(breakdown.serviceFare).toLocaleString("id-ID")}</span>
+            </div>
+            {breakdown.surcharge > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Surcharge</span>
+                <span>+Rp{breakdown.surcharge.toLocaleString("id-ID")}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-1">
+              <span className="text-muted-foreground">Per kursi</span>
+              <span className="font-medium">Rp{unitPrice.toLocaleString("id-ID")}</span>
+            </div>
+            <div className="flex justify-between pt-1">
+              <span className="text-muted-foreground">× {pax} pax</span>
+              <span className="font-bold text-accent">Rp{total.toLocaleString("id-ID")}</span>
+            </div>
+          </div>
+
           <Button
             disabled={selectedSeats.length !== pax}
             onClick={() => setStep("form")}
