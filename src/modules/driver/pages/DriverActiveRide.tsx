@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useActiveRide } from "../hooks/useActiveRide";
 import { DriverMap } from "../components/DriverMap";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ const DriverActiveRide = () => {
     return () => navigator.geolocation.clearWatch(w);
   }, []);
 
-  const update = async (patch: Parameters<ReturnType<typeof supabase.from<"rides">>["update"]>[0]) => {
+  const update = async (patch: TablesUpdate<"rides">) => {
     if (!id) return;
     const { error } = await supabase.from("rides").update(patch).eq("id", id);
     if (error) toast({ title: "Gagal update", description: error.message, variant: "destructive" });
