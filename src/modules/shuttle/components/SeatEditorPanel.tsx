@@ -101,10 +101,11 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
 
   // Subscribe to cloud store so badge timestamp refreshes when realtime fires
   useEffect(() => {
-    return subscribeStore(() => {
+    const unsub = subscribeStore(() => {
       setUpdatedAt(getLayoutUpdatedAt(layoutKey));
       setHasSaved(hasStoredLayout(layoutKey));
     });
+    return () => { unsub(); };
   }, [layoutKey]);
 
   // Reload whenever vehicle/tier combo changes
@@ -154,6 +155,7 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
       return;
     }
     setHasSaved(true);
+    setUpdatedAt(new Date().toISOString());
 
     // Persist tierPrice ke vehicles store
     if (vehicle) {
@@ -172,6 +174,7 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const clearSaved = () => {
     clearLayoutFromStorage(layoutKey);
     setHasSaved(false);
+    setUpdatedAt(null);
     resetToPreset();
     toast.success(`Simpanan ${LAYOUT_LABELS[layoutKey]} dihapus, kembali ke default`);
   };
