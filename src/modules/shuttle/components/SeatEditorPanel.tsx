@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Cloud, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import {
   clearLayoutFromStorage,
   hasStoredLayout,
   buildLayoutKey,
+  getLayoutUpdatedAt,
   DEFAULT_SEAT_SIZE,
   type SeatLayoutConfig,
   type SeatPosition,
@@ -49,6 +50,7 @@ import {
   getServicesAll,
   saveVehicleTypes,
 } from "../data/repository";
+import { uploadSeatLayoutImage, subscribeStore } from "../data/cloudStore";
 import { calcPrice, type VehicleType } from "../data/services";
 
 interface Props {
