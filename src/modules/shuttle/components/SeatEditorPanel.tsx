@@ -224,16 +224,27 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setCustomImage(dataUrl);
-      setConfig((c) => ({ ...c, image: dataUrl }));
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Ukuran gambar maks 5MB");
+      e.target.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadSeatLayoutImage(layoutKey, file);
+      setCustomImage(url);
+      setConfig((c) => ({ ...c, image: url }));
+      toast.success("Gambar diupload ke cloud — klik Simpan untuk persist layout");
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal upload gambar (perlu login admin?)");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
   const exportSnippet = useMemo(() => {
