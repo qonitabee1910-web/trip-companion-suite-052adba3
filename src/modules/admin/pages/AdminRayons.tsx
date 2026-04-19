@@ -167,6 +167,42 @@ const AdminRayons = () => {
     setEditing({ ...editing, data: { ...editing.data, pickupPoints: pts } });
   };
 
+  const findNextEmptyCode = (pts: PickupPoint[], afterCode: string): string | null => {
+    const startIdx = pts.findIndex((p) => p.code === afterCode);
+    for (let k = startIdx + 1; k < pts.length; k++) {
+      if (typeof pts[k].lat !== "number" || typeof pts[k].lng !== "number") return pts[k].code;
+    }
+    for (let k = 0; k < pts.length; k++) {
+      if (typeof pts[k].lat !== "number" || typeof pts[k].lng !== "number") return pts[k].code;
+    }
+    return null;
+  };
+
+  const handleCapture = (code: string, lat: number, lng: number) => {
+    if (!editing) return;
+    const pts = editing.data.pickupPoints.map((p) =>
+      p.code === code ? { ...p, lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) } : p,
+    );
+    setEditing({ ...editing, data: { ...editing.data, pickupPoints: pts } });
+    setActiveCaptureCode(findNextEmptyCode(pts, code));
+  };
+
+  const handleDragMarker = (code: string, lat: number, lng: number) => {
+    if (!editing) return;
+    const pts = editing.data.pickupPoints.map((p) =>
+      p.code === code ? { ...p, lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) } : p,
+    );
+    setEditing({ ...editing, data: { ...editing.data, pickupPoints: pts } });
+  };
+
+  const clearCoord = (code: string) => {
+    if (!editing) return;
+    const pts = editing.data.pickupPoints.map((p) =>
+      p.code === code ? { ...p, lat: undefined, lng: undefined } : p,
+    );
+    setEditing({ ...editing, data: { ...editing.data, pickupPoints: pts } });
+  };
+
   const addTime = () => {
     if (!/^\d{2}:\d{2}$/.test(newTime)) {
       toast({ title: "Format jam salah", description: "Gunakan HH:MM (cth 06:00).", variant: "destructive" });
