@@ -1,4 +1,4 @@
-import { Hotel, Bus, Car, Plane, Train, Ticket, CreditCard, Sparkles } from "lucide-react";
+import { Hotel, Bus, Car, Plane, Train, Ticket, CreditCard, Sparkles, Navigation } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface ModuleEntry {
@@ -15,6 +15,7 @@ export const MODULES: ModuleEntry[] = [
   { id: "hotel", label: "Hotel", icon: Hotel, path: "/hotel", color: "hotel", enabled: true },
   { id: "shuttle", label: "Shuttle", icon: Bus, path: "/shuttle", color: "shuttle", enabled: true },
   { id: "ride", label: "Ride", icon: Car, path: "/ride", color: "ride", enabled: true },
+  { id: "driver", label: "Driver", icon: Navigation, path: "/driver", color: "primary", enabled: true },
   { id: "flight", label: "Pesawat", icon: Plane, path: "#", color: "primary", enabled: false },
   { id: "train", label: "Kereta", icon: Train, path: "#", color: "accent", enabled: false },
   { id: "events", label: "Atraksi", icon: Ticket, path: "#", color: "accent", enabled: false },
