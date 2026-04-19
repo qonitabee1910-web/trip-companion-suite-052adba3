@@ -321,6 +321,28 @@ function setupRealtime() {
         });
     })
     .subscribe();
+
+  supabase
+    .channel("cloud-store-seat-layouts")
+    .on("postgres_changes", { event: "*", schema: "public", table: "seat_layouts" }, () => {
+      supabase
+        .from("seat_layouts")
+        .select("*")
+        .then(({ data }) => {
+          if (data) {
+            const map: Record<string, Partial<SeatLayoutConfig>> = {};
+            data.forEach((l) => {
+              const tierSuffix =
+                l.tier === "executive" ? "EXEC" : l.tier === "semi-executive" ? "SEMI" : "REGULER";
+              const key = `${(l.vehicle_id || "").toUpperCase()}_${tierSuffix}`;
+              map[key] = (l.layout || {}) as Partial<SeatLayoutConfig>;
+            });
+            cache.seatLayouts = map;
+            notify();
+          }
+        });
+    })
+    .subscribe();
 }
 
 // ============== Cache accessors ==============
