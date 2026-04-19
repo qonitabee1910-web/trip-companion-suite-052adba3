@@ -1,79 +1,68 @@
 
 
-# Plan: Peta Leaflet Rute Rayon + Auto-Recalc Jam per Titik berdasarkan Jam Berangkat
+# Plan: Editor Koordinat Lat/Lng untuk Titik Jemput di Admin Rayons
 
-## Konsep Inti
+## Konsep
+Tambahkan UI di `/admin/shuttle/rayons` agar admin bisa:
+1. Lihat & edit `lat`/`lng` tiap pickup point.
+2. Tangkap koordinat dengan **klik di peta Leaflet** (paling intuitif), atau drag marker.
+3. Preview rute & marker langsung saat edit.
 
-1. **Tambahkan koordinat (lat, lng)** ke tiap `PickupPoint` di seed 4 rayon (Medan area). Saya akan isi koordinat berbasis nama hotel/landmark Medan yang sudah dikenal (Hermes Palace ~3.5752,98.6722; KNO ~3.6422,98.8853; dst.). Koordinat opsional di interface—titik tanpa koordinat akan di-skip dari peta tapi tetap tampil di list.
+## Perubahan UI di `AdminRayons.tsx`
 
-2. **Render Leaflet map** di `ShuttleRayon` dengan:
-   - Multi-marker (numbered: J1, J2, ..., DEST=pesawat)
-   - Polyline biru menghubungkan semua titik berurutan
-   - Marker yang dipilih user → highlight (warna primary, lebih besar)
-   - `fitBounds` otomatis sesuai semua titik
-   - Tap marker = pilih pickup tersebut (sinkron dengan grid)
+Di dialog edit rayon, **section "Titik Jemput & Jarak"** ditambahkan:
 
-3. **Auto-recalc jam tiap titik berdasarkan Jam Berangkat user**:
-   - Seed punya jam baseline (J1=06:00). Hitung **offset menit** tiap titik dari J1 (J2=+5min, J3=+10min, dst.).
-   - Saat user pilih jam berangkat (misal 09:00), semua titik di-shift: J1=09:00, J2=09:05, ..., DEST=09:00+totalOffset.
-   - Helper baru `getShiftedSchedule(rayon, departTime)` → return `{ code, time }[]`.
-   - Tampil di chip pickup, di marker popup, dan di info "Tiba ±HH:MM" di header.
+**A. Kolom baru di tabel pickup points:**
+- Kolom **Koordinat**: tampil `lat, lng` (4 desimal) atau "—" jika kosong.
+- Tombol kecil 📍 per baris → set baris itu sebagai "target capture" (highlighted).
+- Input manual lat & lng (dua input number kecil) untuk yang prefer ketik.
 
-## Schema Update
+**B. Card peta di bawah tabel** (`PickupCoordinateMap.tsx` baru):
+- Leaflet map full-width, height 360px.
+- Render semua titik yang sudah punya koordinat sebagai marker bernomor + polyline.
+- **Klik di peta** → set `lat`/`lng` ke baris yang sedang "active" (target capture). Auto-advance ke baris berikutnya yang masih kosong.
+- Marker bisa di-**drag** untuk fine-tune (`draggable: true`, `dragend` event update state).
+- Mode capture indicator: banner di atas peta "Klik di peta untuk set koordinat **J3 - Cambridge**" + tombol Cancel.
+- Tombol "Center to Medan" (default view 3.58, 98.67, zoom 12) jika belum ada titik.
+- Tombol "Fit semua titik" jika sudah ada koordinat.
 
-```ts
-interface PickupPoint {
-  code: string;
-  name: string;
-  time: string;          // baseline (J1 reference)
-  distanceToNext: number;
-  lat?: number;          // NEW
-  lng?: number;          // NEW
-}
-```
+**C. Tombol "Geocode otomatis"** (opsional, simpel):
+- Untuk MVP: skip geocoding eksternal (perlu API key). Cukup klik-peta + drag.
 
-Migration helper sudah ada—tinggal pass-through `lat`/`lng` jika ada.
+## Komponen Baru
 
-## Komponen Baru: `RayonRouteMap.tsx`
+`src/modules/admin/components/PickupCoordinateMap.tsx`
+- Props: `points`, `activeCode`, `onCapture(code, lat, lng)`, `onDragMarker(code, lat, lng)`.
+- Pakai `react-leaflet` (sudah terinstall).
+- `useMapEvents` untuk handle click → panggil `onCapture(activeCode, e.latlng.lat, e.latlng.lng)`.
+- Marker `draggable` + `eventHandlers.dragend` → `onDragMarker`.
+- Polyline antar titik berkoordinat (urutan sesuai array).
+- DivIcon nomor seperti `RayonRouteMap.tsx` (reuse style).
 
-Lokasi: `src/modules/shuttle/components/RayonRouteMap.tsx`
+## Schema
+Tidak perlu ubah—`lat?` & `lng?` sudah opsional di `PickupPoint` (dari iterasi sebelumnya).
 
-- Pakai `react-leaflet` (sudah terinstall, lihat `MiniMap.tsx`).
-- Props: `rayon`, `selectedCode`, `onSelect`, `shiftedTimes` (Map<code, time>).
-- DivIcon kustom: lingkaran kecil dengan nomor (J1...) atau ikon pesawat untuk DEST. Warna beda untuk selected vs default vs destinasi.
-- Polyline `[lat,lng][]` sepanjang urutan titik (skip yg tidak punya koordinat).
-- `useMap` + `fitBounds` saat mount.
-- Height ~280px mobile, 360px desktop. `scrollWheelZoom={false}` untuk UX scroll halaman.
-
-## Helper Baru di `rayons.ts`
-
-```ts
-export function getScheduleOffsets(rayon): { code, offsetMin }[]
-export function getShiftedSchedule(rayon, departTime): Map<code, "HH:MM">
-```
-
-Parse `time` baseline → hitung selisih menit dari titik pertama → tambahkan ke `departTime` user.
-
-## Integrasi di `ShuttleRayon.tsx`
-
-- Hitung `shifted = getShiftedSchedule(rayon, time)` (re-compute saat `time` berubah).
-- Tampilkan `<RayonRouteMap />` sebagai card baru **di antara header info dan card form** (line 92-94).
-- Chip pickup tampilkan `shifted.get(p.code)` bukan `p.time`.
-- Header info tambah "Tiba ±{shifted.get('DEST')}".
-
-## Seed Koordinat (4 Rayon)
-
-Saya akan isi koordinat plausible Medan untuk semua titik (pakai pengetahuan landmark umum: hotel-hotel besar, simpang, RS, KNO airport). Keakuratan ±200m cukup untuk visualisasi rute. Admin tetap bisa edit nanti jika perlu (akan ditambahkan field koordinat di AdminRayons di iterasi terpisah jika diminta).
+## State Management di Dialog
+- Existing `editingRayon.pickupPoints` state diperluas dengan field `lat`/`lng`.
+- State baru `activeCaptureCode: string | null` untuk track baris target.
+- Handler `handleCapture(code, lat, lng)` update array & auto-advance `activeCaptureCode` ke titik kosong berikutnya (atau null jika selesai).
+- Save dialog → persist via repository (sudah ada).
 
 ## File Changes
 
-**NEW:** `src/modules/shuttle/components/RayonRouteMap.tsx`
+**NEW:** `src/modules/admin/components/PickupCoordinateMap.tsx`
 
 **EDIT:**
-- `src/modules/shuttle/data/rayons.ts` — `lat`/`lng` di PickupPoint, koordinat di seed 4 rayon, helper `getShiftedSchedule` & `getScheduleOffsets`, update `migrateRayon` pass-through koordinat.
-- `src/modules/shuttle/pages/ShuttleRayon.tsx` — render map, pakai jam shifted di chip & header.
+- `src/modules/admin/pages/AdminRayons.tsx` — kolom koordinat di tabel pickup, integrate `PickupCoordinateMap`, state capture mode, handler click/drag.
+
+## UX Flow
+1. Admin buka dialog edit Rayon A.
+2. Scroll ke section pickup points → lihat tabel + peta di bawah.
+3. Klik 📍 di baris J1 → banner "Klik di peta untuk set koordinat J1 - Hermes Palace".
+4. Klik di peta → marker muncul, lat/lng terisi di tabel, auto-advance ke J2.
+5. Drag marker untuk koreksi → update otomatis.
+6. Save → koordinat tersimpan, dipakai di `ShuttleRayon` map user.
 
 ## Hasil
-
-User di `/shuttle/rayon/A` lihat peta interaktif rute Rayon A dengan polyline melewati 14 titik + KNO. Saat user ubah Jam Berangkat dari 06:00 ke 09:00, semua jam di chip + popup marker auto-update (J1=09:00, ..., KNO=11:14). Tap marker di peta = otomatis pilih pickup itu. Info "Tiba ±11:14" muncul di header.
+Admin punya editor visual untuk koordinat tanpa perlu cari lat/lng manual di Google Maps. Workflow cepat: klik 14 titik di peta = selesai satu rayon. Hasilnya langsung dipakai di peta user shuttle.
 
