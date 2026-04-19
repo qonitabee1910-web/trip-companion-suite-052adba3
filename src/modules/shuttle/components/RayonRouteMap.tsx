@@ -66,6 +66,16 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
+function PanToSelected({ target }: { target: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!target) return;
+    const targetZoom = Math.max(map.getZoom(), 14);
+    map.flyTo(target, targetZoom, { duration: 0.6 });
+  }, [map, target?.[0], target?.[1]]);
+  return null;
+}
+
 export const RayonRouteMap = ({
   rayon,
   selectedCode,
