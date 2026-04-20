@@ -618,48 +618,84 @@ export async function persistDepartTimes(times: string[]): Promise<SaveResult> {
   return { ok: true };
 }
 
-export async function persistServices(services: ServiceConfig[]): Promise<void> {
-  await supabase.from("services").upsert(
-    services.map((s, i) => ({
-      tier: s.tier,
-      label: s.label,
-      description: s.description,
-      price_multiplier: s.priceMultiplier,
-      features: s.features,
-      active: s.active ?? true,
-      sort_order: i,
-    })),
-  );
+export async function persistServices(services: ServiceConfig[]): Promise<SaveResult> {
+  const rows = services.map((s, i) => ({
+    tier: s.tier,
+    label: s.label,
+    description: s.description,
+    price_multiplier: s.priceMultiplier,
+    features: s.features,
+    active: s.active ?? true,
+    sort_order: i,
+  }));
+  const res = await supabase.from("services").upsert(rows).select("tier");
+  if (res.error) {
+    console.error("[cloudStore] persistServices failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if (rows.length > 0 && (res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.services = services;
   notify();
+  return { ok: true };
 }
 
-export async function persistVehicles(vehicles: VehicleType[]): Promise<void> {
-  await supabase.from("vehicle_types").upsert(
-    vehicles.map((v, i) => ({
-      id: v.id,
-      label: v.label,
-      vehicle_name: v.vehicleName,
-      description: v.description,
-      tier_prices: v.tierPrices ?? {},
-      active: v.active ?? true,
-      sort_order: i,
-    })),
-  );
+export async function persistVehicles(vehicles: VehicleType[]): Promise<SaveResult> {
+  const rows = vehicles.map((v, i) => ({
+    id: v.id,
+    label: v.label,
+    vehicle_name: v.vehicleName,
+    description: v.description,
+    tier_prices: v.tierPrices ?? {},
+    active: v.active ?? true,
+    sort_order: i,
+  }));
+  const res = await supabase.from("vehicle_types").upsert(rows).select("id");
+  if (res.error) {
+    console.error("[cloudStore] persistVehicles failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if (rows.length > 0 && (res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.vehicles = vehicles;
   notify();
+  return { ok: true };
 }
 
-export async function persistDestination(d: Destination): Promise<void> {
-  await supabase.from("shuttle_settings").upsert({ key: "destination", value: d as any });
+export async function persistDestination(d: Destination): Promise<SaveResult> {
+  const res = await supabase
+    .from("shuttle_settings")
+    .upsert({ key: "destination", value: d as any })
+    .select("key");
+  if (res.error) {
+    console.error("[cloudStore] persistDestination failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if ((res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.destination = d;
   notify();
+  return { ok: true };
 }
 
-export async function persistContent(c: ShuttleContent): Promise<void> {
-  await supabase.from("shuttle_settings").upsert({ key: "content", value: c as any });
+export async function persistContent(c: ShuttleContent): Promise<SaveResult> {
+  const res = await supabase
+    .from("shuttle_settings")
+    .upsert({ key: "content", value: c as any })
+    .select("key");
+  if (res.error) {
+    console.error("[cloudStore] persistContent failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if ((res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.content = c;
   notify();
+  return { ok: true };
 }
 
 // Bookings
