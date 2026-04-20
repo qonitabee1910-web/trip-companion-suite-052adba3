@@ -10,12 +10,15 @@ import { useDriverLocation } from "../hooks/useDriverLocation";
 import { useIncomingRides } from "../hooks/useIncomingRides";
 import { useDriverActiveRide } from "../hooks/useActiveRide";
 import { toast } from "@/hooks/use-toast";
-import { Bus, LogOut, Star } from "lucide-react";
+import { Bus, LogOut, Star, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/shared/auth/useAuth";
 import type { DriverRow, Ride } from "../data/driver";
 import { formatRupiah } from "../data/driver";
 
 const DriverHome = () => {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string>("Driver");
   const [driver, setDriver] = useState<DriverRow | null>(null);
@@ -31,7 +34,7 @@ const DriverHome = () => {
     const init = async () => {
       const { data: sess } = await supabase.auth.getSession();
       if (!sess.session) {
-        navigate("/driver/login", { replace: true });
+        navigate("/auth?role=driver&from=%2Fdriver", { replace: true });
         return;
       }
       const uid = sess.session.user.id;
@@ -44,7 +47,7 @@ const DriverHome = () => {
       if (!roleRow) {
         toast({ title: "Akses ditolak", description: "Akun Anda bukan driver.", variant: "destructive" });
         await supabase.auth.signOut();
-        navigate("/driver/login", { replace: true });
+        navigate("/auth?role=driver", { replace: true });
         return;
       }
       if (!mounted) return;
@@ -83,7 +86,7 @@ const DriverHome = () => {
     init();
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!s) navigate("/driver/login", { replace: true });
+      if (!s) navigate("/auth?role=driver", { replace: true });
     });
     return () => {
       mounted = false;
@@ -158,24 +161,32 @@ const DriverHome = () => {
   const logout = async () => {
     if (driver?.is_online) await supabase.from("drivers").update({ is_online: false }).eq("id", driver.id);
     await supabase.auth.signOut();
-    navigate("/driver/login", { replace: true });
+    navigate("/auth?role=driver", { replace: true });
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* header */}
       <div className="flex items-center justify-between border-b bg-card px-4 py-3">
-        <div>
-          <div className="text-xs text-muted-foreground">Selamat datang</div>
-          <div className="flex items-center gap-2 font-semibold">
-            {profileName}
-            <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-              <Star className="h-3 w-3 fill-current text-yellow-500" />
-              {driver?.rating?.toFixed(2) ?? "5.00"}
-            </span>
+        <button onClick={() => navigate("/driver/profile")} className="flex items-center gap-3 text-left">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={profile?.photo_url ?? undefined} />
+            <AvatarFallback>
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="text-xs text-muted-foreground">Selamat datang</div>
+            <div className="flex items-center gap-2 font-semibold">
+              {profileName}
+              <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                <Star className="h-3 w-3 fill-current text-yellow-500" />
+                {driver?.rating?.toFixed(2) ?? "5.00"}
+              </span>
+            </div>
           </div>
-        </div>
-        <Button variant="ghost" size="icon" onClick={logout}>
+        </button>
+        <Button variant="ghost" size="icon" onClick={logout} aria-label="Logout">
           <LogOut className="h-4 w-4" />
         </Button>
       </div>

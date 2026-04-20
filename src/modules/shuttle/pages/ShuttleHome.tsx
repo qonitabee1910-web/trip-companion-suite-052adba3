@@ -3,8 +3,10 @@ import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plane, MapPin, ArrowRight, Ticket } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Plane, MapPin, ArrowRight, Ticket, User } from "lucide-react";
 import { getRayons, getDestinationStored, getContentStored } from "../data/repository";
+import { useAuth } from "@/shared/auth/useAuth";
 
 const rayonAccent: Record<string, string> = {
   A: "from-primary/15 to-primary/5 border-primary/30 text-primary",
@@ -15,9 +17,12 @@ const rayonAccent: Record<string, string> = {
 
 const ShuttleHome = () => {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const RAYONS = getRayons();
   const DESTINATION = getDestinationStored();
   const content = getContentStored();
+
+  const goProfile = () => navigate(user ? "/shuttle/profile" : "/auth?from=%2Fshuttle%2Fprofile");
 
   return (
     <ResponsiveLayout
@@ -25,14 +30,24 @@ const ShuttleHome = () => {
       mobileBack="/"
       mobileSubtitle={content.heroSubtitle}
       mobileHeaderRight={
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => navigate("/shuttle/my-bookings")}
-          className="text-primary-foreground hover:bg-white/10 gap-1"
-        >
-          <Ticket className="h-4 w-4" /> Tiket
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate("/shuttle/my-bookings")}
+            className="text-primary-foreground hover:bg-white/10 gap-1"
+          >
+            <Ticket className="h-4 w-4" /> Tiket
+          </Button>
+          <button onClick={goProfile} aria-label="Profil" className="ml-1">
+            <Avatar className="h-8 w-8 ring-2 ring-white/40">
+              <AvatarImage src={profile?.photo_url ?? undefined} />
+              <AvatarFallback className="bg-white/20 text-primary-foreground">
+                <User className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </div>
       }
     >
       <section className="bg-gradient-hero text-primary-foreground">
