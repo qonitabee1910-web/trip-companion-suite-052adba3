@@ -19,9 +19,9 @@ import { formatRupiah } from "../data/driver";
 
 const DriverHome = () => {
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [profileName, setProfileName] = useState<string>("Driver");
+  const { user, profile } = useAuth();
+  const userId = user?.id ?? null;
+  const profileName = profile?.full_name ?? "Driver";
   const [driver, setDriver] = useState<DriverRow | null>(null);
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
   const [todayCount, setTodayCount] = useState(0);
@@ -29,43 +29,21 @@ const DriverHome = () => {
 
   const activeRide = useDriverActiveRide(userId);
 
-  // Auth gate + role check
+  // Bootstrap driver row + today stats (RequireAuth already guards role + verification)
   useEffect(() => {
+    if (!userId) return;
     let mounted = true;
-    const init = async () => {
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) {
-        navigate("/auth?role=driver&from=%2Fdriver", { replace: true });
-        return;
-      }
-      const uid = sess.session.user.id;
-      const { data: roleRow } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", uid)
-        .eq("role", "driver")
-        .maybeSingle();
-      if (!roleRow) {
-        toast({ title: "Akses ditolak", description: "Akun Anda bukan driver.", variant: "destructive" });
-        await supabase.auth.signOut();
-        navigate("/auth?role=driver", { replace: true });
-        return;
-      }
-      if (!mounted) return;
-      setUserId(uid);
-
-      const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", uid).maybeSingle();
-      if (prof?.full_name) setProfileName(prof.full_name);
-
+    (async () => {
       // ensure driver row exists
-      const { data: drv } = await supabase.from("drivers").select("*").eq("id", uid).maybeSingle();
+      const { data: drv } = await supabase.from("drivers").select("*").eq("id", userId).maybeSingle();
+      if (!mounted) return;
       if (!drv) {
         const { data: created } = await supabase
           .from("drivers")
-          .insert({ id: uid, vehicle_type: "car", plate: "—" })
+          .insert({ id: userId, vehicle_type: "car", plate: "—" })
           .select()
           .single();
-        setDriver(created as DriverRow);
+        if (mounted) setDriver(created as DriverRow);
       } else {
         setDriver(drv as DriverRow);
       }
@@ -76,24 +54,18 @@ const DriverHome = () => {
       const { data: rides } = await supabase
         .from("rides")
         .select("fare")
-        .eq("driver_id", uid)
+        .eq("driver_id", userId)
         .eq("status", "completed")
         .gte("completed_at", start.toISOString());
-      if (rides) {
+      if (mounted && rides) {
         setTodayCount(rides.length);
         setTodayEarnings(rides.reduce((s, r: any) => s + (r.fare ?? 0), 0));
       }
-    };
-    init();
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!s) navigate("/auth?role=driver", { replace: true });
-    });
+    })();
     return () => {
       mounted = false;
-      subscription.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [userId]);
 
   // location
   useDriverLocation({

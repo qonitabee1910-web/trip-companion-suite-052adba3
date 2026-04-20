@@ -65,38 +65,25 @@ function rowToBooking(row: any): ShuttleBooking {
 
 const MyBookings = () => {
   const navigate = useNavigate();
-  const [authChecking, setAuthChecking] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [bookings, setBookings] = useState<ShuttleBooking[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<ShuttleBooking | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "png" | null>(null);
 
+  // RequireAuth in registry already guarantees we have a session here.
   useEffect(() => {
     let cancelled = false;
-    const init = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (!data.session) {
-        navigate("/shuttle/login", {
-          replace: true,
-          state: { from: "/shuttle/my-bookings" },
-        });
-        return;
-      }
-      setUserEmail(data.session.user.email ?? null);
-      setAuthChecking(false);
-      await fetchBookings(data.session.user.id);
-    };
-    init();
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!s) navigate("/shuttle/login", { replace: true });
-    });
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (cancelled || !data.user) return;
+      setUserEmail(data.user.email ?? null);
+      await fetchBookings(data.user.id);
+    })();
     return () => {
       cancelled = true;
-      sub.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const fetchBookings = async (uid: string) => {
     setLoading(true);
@@ -118,7 +105,7 @@ const MyBookings = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/shuttle/login", { replace: true });
+    navigate("/auth", { replace: true });
   };
 
   const ticketDomId = selected ? `ticket-export-${selected.id}` : "ticket-export";
