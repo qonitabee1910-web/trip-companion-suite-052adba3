@@ -1,90 +1,76 @@
 
 
-## Plan: Refactor Harga Tiket User Shuttle — Dinamis & Database-Driven
+## Plan: Rebrand → **PYU-GO** + Head Banner Baru
 
-### Akar Masalah (3 lapis)
+### Konteks Singkat
+Brand "Traverla" tersebar di 5 file (`index.html`, `WebHeader.tsx`, `Home.tsx`, `RideHome.tsx`, `ResponsiveLayout.tsx`). Warna primer existing sudah biru (#0194F3 — Traveloka blue), tapi user ingin **biru langit** yang lebih cerah & airy. Tidak ada komponen "Head Banner" reusable saat ini — hero hanya inline di tiap halaman.
 
-**1. Halaman `/shuttle/search` legacy = dead code yang menyesatkan**
-File `ShuttleSearch.tsx` masih pakai `SHUTTLES` hardcoded (Jakarta-Bandung, Cipaganti dll) dengan `price` static. Tidak nyambung ke fare calc, tidak nyambung DB. Flow user yang asli: Home → Rayon → Service → Vehicle → Book. Halaman ini perlu dihapus/redirect.
+### Identitas Brand Baru: PYU-GO
 
-**2. Data DB rusak → harga jadi 0**
-Query DB membuktikan:
-- `services.price_multiplier` = **0** untuk semua tier (harusnya 1.0 / 1.4 / 1.8)
-- `vehicle_types.tier_prices`: HiAce reguler = **0**, SUV & MiniCar **semua tier = 0**
+**Wordmark**: `PYU-GO` (uppercase tegas, font-extrabold, letter-spacing tight)
+**Tagline**: "Jalan-jalan, semua dari satu aplikasi."
+**Logo mark**: ikon `Plane` (atau kombinasi `MapPin`) di atas chip putih bulat — konsisten dengan pola lama tapi diganti glyph.
 
-Akibat di formula `calcFareBreakdown`:
-```
-serviceFare = distanceFare × 0 = 0
-basePrice   = 0 (untuk SUV/Mini)
-total       = round(0 + 0 + surcharge=0) = Rp 0
-```
-User lihat **"Rp 0"** atau angka aneh di Service & Vehicle page.
+**Palet Biru Langit (HSL)**
+| Token | HSL | Hex approx | Pakai untuk |
+|---|---|---|---|
+| `--primary` | `202 89% 60%` | #38BDF8 | CTA, link, brand |
+| `--primary-hover` | `202 89% 52%` | #0EA5E9 | hover |
+| `--primary-soft` | `202 100% 95%` | #E0F2FE | bg lembut, badge |
+| `--ring` | `202 89% 60%` | — | focus ring |
+| `--gradient-hero` | linear `from 199 95% 74% → 202 89% 50%` | sky-300 → sky-500 | header, banner |
+| `--accent` (tetap orange) | `16 100% 56%` | — | promo/CTA sekunder |
 
-**3. Breakdown harga tersembunyi sampai step terakhir**
-Di `ShuttleService` & `ShuttleVehicle` cuma muncul angka total tanpa konteks. Padahal `calcFareBreakdown` sudah expose: jarak, tarif/km, multiplier, surcharge. User tidak tahu kenapa harganya segitu → trust rendah.
+Modul color `--hotel` ikut update ke biru langit baru. `--shuttle` (hijau) & `--ride` (orange) tetap untuk diferensiasi.
 
-### Solusi
+### Komponen Baru: `<HeadBanner>`
 
-**A. Seed data DB yang valid (migration data fix)**
-- Update `services.price_multiplier`: reguler=1.0, semi=1.4, exec=1.8
-- Update `vehicle_types.tier_prices` ke default sehat:
-  - HiAce: 120k / 160k / 220k
-  - SUV: 180k / 230k / 300k  
-  - MiniCar: 95k / 130k / 175k
-- Pakai `UPDATE` lewat insert tool (bukan migration schema).
-
-**B. Hapus / redirect halaman `/shuttle/search` legacy**
-- Hapus route `/shuttle/search` + import di `App.tsx`.
-- Hapus file `ShuttleSearch.tsx` dan `ShuttleSearchForm.tsx` (jika tidak dipakai di tempat lain — cek dulu).
-- Hapus `SHUTTLES` dummy dari `data/shuttles.ts` (atau kosongkan file).
-
-**C. Komponen baru: `<FareBreakdownCard>` reusable**
-Lokasi: `src/modules/shuttle/components/FareBreakdownCard.tsx`. Props:
+**Lokasi**: `src/shared/components/HeadBanner.tsx`
+**Props**:
 ```ts
-{ vehicle, service, rayon, pickupCode?, pax, compact? }
+{
+  title: string;
+  subtitle?: string;
+  icon?: LucideIcon;          // default Plane
+  variant?: "hero" | "compact"; // hero = besar (Home), compact = halaman dalam
+  rightSlot?: ReactNode;       // optional (search, bell, avatar)
+  showWordmark?: boolean;      // tampilkan "PYU-GO" di kiri
+  className?: string;
+}
 ```
-Render breakdown rapi:
-```
-Jarak 12.4 km × Rp1.500    Rp 18.600
-Multiplier Semi ×1.4       Rp  7.440
-Harga dasar HiAce Semi     Rp160.000
-Surcharge                  Rp     0
-─────────────────────────
-Per kursi                  Rp186.000
-× 2 pax                    Rp372.000
-```
-Mode `compact` = baris ringkas untuk Service/Vehicle list.
 
-**D. Integrasikan ke 3 halaman user**
-1. **`ShuttleService.tsx`** — di tiap card service, ganti "mulai dari Rp X" jadi mini fare hint: "Rp X (HiAce, ±12 km)" + tooltip/popover berisi `<FareBreakdownCard compact>` saat user tap info icon.
-2. **`ShuttleVehicle.tsx`** — di tiap card vehicle, expand dengan accordion "Lihat rincian tarif" → `<FareBreakdownCard>` full. Tampilkan unit price + total pax langsung.
-3. **`ShuttleBooking.tsx`** — refactor blok "Rincian tarif" inline jadi pakai `<FareBreakdownCard>` (sekarang sudah ada inline, tapi duplikat logic).
+**Render**:
+- Background `bg-gradient-hero` (gradien biru langit baru) + tekstur subtle (radial-glow putih 10% di kanan atas via inline gradient).
+- Wordmark `PYU-GO` di kiri dengan logo chip.
+- Title `text-2xl md:text-4xl font-extrabold` + subtitle putih 85%.
+- Mode `compact` = tinggi lebih kecil, tanpa subtitle besar — cocok untuk halaman modul.
 
-**E. Live recompute saat data DB berubah (realtime)**
-Karena cache `cloudCache.services/vehicles/rayons` sudah punya subscriber via `notifyStore`, tambahkan hook `useCloudSnapshot()` di setiap halaman pricing supaya fare otomatis recompute saat admin edit multiplier/tarif tanpa perlu refresh user.
+### Perubahan File
 
-### File yang Disentuh
+**1. `src/index.css`** — ganti token `--primary*`, `--ring`, `--hotel*`, `--gradient-hero` ke palet biru langit baru. Update juga `.dark` mode.
 
-- **DB seed (insert tool)** — update `services.price_multiplier` & `vehicle_types.tier_prices`.
-- **`src/App.tsx`** — hapus route + import `ShuttleSearch`.
-- **DELETE `src/modules/shuttle/pages/ShuttleSearch.tsx`** dan **`src/modules/shuttle/components/ShuttleSearchForm.tsx`** (verifikasi tidak dipakai elsewhere).
-- **`src/modules/shuttle/data/shuttles.ts`** — kosongkan / hapus `SHUTTLES`.
-- **NEW `src/modules/shuttle/components/FareBreakdownCard.tsx`** — komponen reusable.
-- **NEW `src/modules/shuttle/hooks/useCloudSnapshot.ts`** — re-render hook subscribe `notifyStore`.
-- **`src/modules/shuttle/pages/ShuttleService.tsx`** — pakai `FareBreakdownCard compact` + hook.
-- **`src/modules/shuttle/pages/ShuttleVehicle.tsx`** — accordion breakdown + hook.
-- **`src/modules/shuttle/pages/ShuttleBooking.tsx`** — replace inline breakdown dengan komponen.
+**2. `index.html`** — title, description, author, og/twitter ke "PYU-GO — Jalan-jalan, semua dari satu aplikasi." Hapus og:image lama (atau biarkan sampai user upload baru).
+
+**3. `src/shared/components/HeadBanner.tsx`** — komponen baru.
+
+**4. `src/shared/components/WebHeader.tsx`** — wordmark `PYU-GO` (uppercase, tracking-tight), logo chip pakai `Plane`.
+
+**5. `src/shared/components/ResponsiveLayout.tsx`** — default `mobileTitle="PYU-GO"`.
+
+**6. `src/pages/Home.tsx`** — ganti hero mobile + web jadi pakai `<HeadBanner variant="hero">`. Wordmark "PYU-GO". Headline: "Hai, mau ke mana hari ini?" (mobile) / "Jalan-jalan, antar-jemput, sampai pesan kendaraan — semua dari PYU-GO." (web).
+
+**7. `src/modules/ride/pages/RideHome.tsx`** — line 348: "Terima kasih sudah memesan dengan **PYU-GO**".
+
+**8. `README.md`** (opsional) — update judul proyek ke PYU-GO.
 
 ### Tidak Termasuk
-
-- Tidak menambah field harga baru di DB (struktur sudah cukup).
-- Tidak ubah fare formula — hanya expose detail ke user.
-- Tidak migrasi `tier_prices` per-rayon (kalau perlu nanti, bisa fitur lanjutan).
+- Tidak buat logo SVG kustom — pakai Lucide `Plane` icon (user bisa upload logo nanti via Visual Edits / chat).
+- Tidak ubah favicon (perlu file dari user).
+- Tidak ubah skema warna `--shuttle` (hijau) dan `--ride` (orange) — tetap untuk diferensiasi modul.
+- Tidak rename folder/route (`/shuttle`, `/ride`, `/hotel` tetap).
 
 ### Hasil
-
-- Harga di Service & Vehicle page **akurat & tidak Rp 0** lagi (fix data DB).
-- User lihat **breakdown transparan**: jarak × tarif/km, multiplier, base, surcharge → naik trust.
-- Admin edit `price_multiplier` di `/admin/shuttle/services` → user di tab lain langsung lihat harga update **tanpa refresh** (realtime).
-- Halaman `/shuttle/search` legacy hilang → tidak ada lagi entry point dummy yang bikin user bingung.
+- Seluruh kemunculan "Traverla" → "PYU-GO" di UI & metadata.
+- Warna brand bergeser dari Traveloka-blue ke **biru langit cerah** (#38BDF8 sky-400) dengan gradien hero sky-300 → sky-500 yang lebih ringan & modern.
+- `<HeadBanner>` reusable bisa dipakai konsisten di Home, Hotel, Shuttle, Ride, Driver, Admin → tampilan lebih seragam dan brand-forward.
 
