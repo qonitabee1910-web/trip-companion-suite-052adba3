@@ -1,4 +1,9 @@
-import { Hotel, Bus, Car, Plane, Train, Ticket, CreditCard, Sparkles, Navigation } from "lucide-react";
+/**
+ * Backward-compat shim — old `@/shared/modules` consumers keep working,
+ * but the actual definitions live in module manifests + moduleRegistry.
+ */
+import { getHomeGridModules } from "./moduleRegistry";
+import type { AppModule, ModuleColor } from "./moduleSystem";
 import type { LucideIcon } from "lucide-react";
 
 export interface ModuleEntry {
@@ -6,19 +11,20 @@ export interface ModuleEntry {
   label: string;
   icon: LucideIcon;
   path: string;
-  color: "hotel" | "shuttle" | "ride" | "primary" | "accent";
+  color: ModuleColor;
   enabled: boolean;
 }
 
-// Add new modules here — they will appear in home grid automatically.
-export const MODULES: ModuleEntry[] = [
-  { id: "hotel", label: "Hotel", icon: Hotel, path: "/hotel", color: "hotel", enabled: true },
-  { id: "shuttle", label: "Shuttle", icon: Bus, path: "/shuttle", color: "shuttle", enabled: true },
-  { id: "ride", label: "Ride", icon: Car, path: "/ride", color: "ride", enabled: true },
-  { id: "driver", label: "Driver", icon: Navigation, path: "/driver", color: "primary", enabled: true },
-  { id: "flight", label: "Pesawat", icon: Plane, path: "#", color: "primary", enabled: false },
-  { id: "train", label: "Kereta", icon: Train, path: "#", color: "accent", enabled: false },
-  { id: "events", label: "Atraksi", icon: Ticket, path: "#", color: "accent", enabled: false },
-  { id: "bills", label: "Tagihan", icon: CreditCard, path: "#", color: "primary", enabled: false },
-  { id: "more", label: "Lainnya", icon: Sparkles, path: "#", color: "primary", enabled: false },
-];
+function toEntry(m: AppModule): ModuleEntry {
+  return {
+    id: m.id,
+    label: m.label,
+    icon: m.icon,
+    path: m.homePath ?? "#",
+    color: m.color,
+    enabled: m.enabled,
+  };
+}
+
+/** Home grid modules in display order — same shape as before. */
+export const MODULES: ModuleEntry[] = getHomeGridModules().map(toEntry);
