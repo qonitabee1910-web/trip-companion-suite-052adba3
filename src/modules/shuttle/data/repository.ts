@@ -199,22 +199,22 @@ import {
 export function resetSection(section: ResettableSection) {
   switch (section) {
     case "rayons":
-      saveRayons(DEFAULT_RAYONS);
+      void saveRayons(DEFAULT_RAYONS);
       break;
     case "times":
-      saveDepartTimes(DEFAULT_TIMES);
+      void saveDepartTimes(DEFAULT_TIMES);
       break;
     case "services":
-      saveServices(DEFAULT_SERVICES);
+      void saveServices(DEFAULT_SERVICES);
       break;
     case "vehicles":
-      saveVehicleTypes(DEFAULT_VEHICLES);
+      void saveVehicleTypes(DEFAULT_VEHICLES);
       break;
     case "destination":
-      saveDestination(DEFAULT_DESTINATION);
+      void saveDestination(DEFAULT_DESTINATION);
       break;
     case "content":
-      saveContent(DEFAULT_CONTENT);
+      void saveContent(DEFAULT_CONTENT);
       break;
     case "bookings":
       // delete all current bookings client-side, fire deletes
