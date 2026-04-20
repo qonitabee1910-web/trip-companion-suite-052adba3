@@ -35,6 +35,7 @@ import AdminScan from "./modules/admin/pages/AdminScan";
 import AdminSeatEditor from "./modules/admin/pages/AdminSeatEditor";
 import AdminShuttleContent from "./modules/admin/pages/AdminShuttleContent";
 import AdminInventory from "./modules/admin/pages/AdminInventory";
+import AdminLogin from "./modules/admin/pages/AdminLogin";
 
 import { CloudGate } from "./shared/components/CloudGate";
 
@@ -72,6 +73,7 @@ const App = () => (
           <Route path="/driver/shuttle" element={<DriverShuttleTrip />} />
           <Route path="/driver/shuttle/:id" element={<DriverShuttleTrip />} />
 
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/shuttle/rayons" element={<AdminRayons />} />
           <Route path="/admin/shuttle/services" element={<AdminServices />} />

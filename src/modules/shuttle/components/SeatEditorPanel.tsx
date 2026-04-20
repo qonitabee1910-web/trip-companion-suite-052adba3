@@ -52,6 +52,10 @@ import {
 } from "../data/repository";
 import { uploadSeatLayoutImage, subscribeStore } from "../data/cloudStore";
 import { calcPrice, type VehicleType } from "../data/services";
+import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ShieldAlert } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Props {
   initialKey?: LayoutKey;
@@ -111,7 +115,23 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const [hasSaved, setHasSaved] = useState(() => hasStoredLayout(startKey));
   const [updatedAt, setUpdatedAt] = useState<string | null>(() => getLayoutUpdatedAt(startKey));
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [authStatus, setAuthStatus] = useState<"loading" | "no-auth" | "no-admin" | "admin">("loading");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Check admin role on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!user) { setAuthStatus("no-auth"); return; }
+      const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      if (cancelled) return;
+      setAuthStatus(data === true ? "admin" : "no-admin");
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Subscribe to cloud store so badge timestamp refreshes when realtime fires
   useEffect(() => {
@@ -162,27 +182,44 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     setSelectedNum(null);
   };
 
-  const saveLayout = () => {
-    const ok = saveLayoutToStorage(layoutKey, config, !!customImage);
-    if (!ok) {
-      toast.error("Gagal menyimpan (storage penuh?)");
+  const saveLayout = async () => {
+    if (saving) return;
+    if (authStatus !== "admin") {
+      toast.error(authStatus === "no-auth"
+        ? "Login admin diperlukan untuk menyimpan"
+        : "Akun Anda bukan admin");
       return;
     }
-    setHasSaved(true);
-    setUpdatedAt(new Date().toISOString());
+    setSaving(true);
+    try {
+      const result = await saveLayoutToStorage(layoutKey, config, !!customImage);
+      if (!result.ok) {
+        const code = result.error?.code;
+        if (code === "42501") {
+          toast.error("Akses ditolak — login sebagai admin terlebih dahulu");
+        } else {
+          toast.error(`Gagal menyimpan: ${result.error?.message ?? "unknown error"}`);
+        }
+        return;
+      }
+      setHasSaved(true);
+      setUpdatedAt(new Date().toISOString());
 
-    // Persist tierPrice ke vehicles store
-    if (vehicle) {
-      const all = getVehicleTypesAll();
-      const next = all.map((v) =>
-        v.id === vehicleId
-          ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
-          : v,
-      );
-      saveVehicleTypes(next);
+      // Persist tierPrice ke vehicles store
+      if (vehicle) {
+        const all = getVehicleTypesAll();
+        const next = all.map((v) =>
+          v.id === vehicleId
+            ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
+            : v,
+        );
+        saveVehicleTypes(next);
+      }
+
+      toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan ke cloud — kapasitas ${capacity} kursi`);
+    } finally {
+      setSaving(false);
     }
-
-    toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan — kapasitas ${capacity} kursi, harga Rp${tierPrice.toLocaleString("id-ID")}`);
   };
 
   const clearSaved = () => {
@@ -294,7 +331,22 @@ ${seatsStr}
   const selected = config.seats.find((s) => s.num === selectedNum);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="space-y-4">
+      {authStatus !== "loading" && authStatus !== "admin" && (
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>
+            {authStatus === "no-auth" ? "Belum login" : "Bukan admin"}
+          </AlertTitle>
+          <AlertDescription>
+            {authStatus === "no-auth"
+              ? "Login diperlukan untuk menyimpan denah ke cloud. "
+              : "Akun Anda tidak punya role admin. "}
+            <Link to="/admin/login" className="font-semibold underline">Buka halaman admin login</Link>.
+          </AlertDescription>
+        </Alert>
+      )}
+      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
       {/* Control panel */}
       <div className="space-y-4">
         <Card className="space-y-3 p-4">
@@ -402,8 +454,9 @@ ${seatsStr}
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={addSeat} size="sm" variant="outline"><Plus className="h-4 w-4" />Kursi</Button>
             <Button onClick={resetToPreset} size="sm" variant="outline"><RotateCcw className="h-4 w-4" />Reset</Button>
-            <Button onClick={saveLayout} size="sm" className="col-span-2">
-              <Save className="h-4 w-4" />Simpan ke tampilan user
+            <Button onClick={saveLayout} size="sm" className="col-span-2" disabled={saving || authStatus !== "admin"}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Menyimpan…" : "Simpan ke tampilan user"}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -558,6 +611,7 @@ ${seatsStr}
           <SeatEditorLivePreview config={config} />
         </Card>
       </div>
+    </div>
     </div>
   );
 }
