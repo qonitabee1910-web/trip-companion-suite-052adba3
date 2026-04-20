@@ -71,6 +71,7 @@ const ShuttleService = () => {
 
         {SERVICES.map((s) => {
           const Icon = tierIcon[s.tier] ?? Gauge;
+          const pickupCode = params.get("pickup");
           const cheapestForTier = VEHICLE_TYPES.reduce<typeof VEHICLE_TYPES[number] | undefined>(
             (min, v) => {
               const p = getVehicleTierPrice(v, s.tier);
@@ -79,7 +80,7 @@ const ShuttleService = () => {
             },
             undefined,
           );
-          const startPrice = cheapestForTier ? calcPrice(cheapestForTier, s, rayon) : 0;
+          const startPrice = cheapestForTier ? calcPrice(cheapestForTier, s, rayon, pickupCode) : 0;
           const isExec = s.tier === "executive";
           return (
             <Card
@@ -128,6 +129,7 @@ const ShuttleService = () => {
                           vehicle={cheapestForTier}
                           service={s}
                           rayon={rayon}
+                          pickupCode={pickupCode || undefined}
                           compact
                         />
                       </PopoverContent>

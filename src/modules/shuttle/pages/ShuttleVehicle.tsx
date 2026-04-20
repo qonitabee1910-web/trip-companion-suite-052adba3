@@ -11,6 +11,7 @@ import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { getAvailableCount } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { PickupPointFareSummary } from "../components/PickupPointFareSummary";
 import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import hiaceImg from "@/assets/shuttle/base-hiace.png";
 
@@ -29,6 +30,7 @@ const ShuttleVehicle = () => {
   const date = params.get("date") || "";
   const time = params.get("time") || "";
   const rayonId = params.get("rayon") || "A";
+  const pickupCode = params.get("pickup") || undefined;
 
   const handlePick = (vehicleId: string) => {
     const next = new URLSearchParams(params);
@@ -53,13 +55,21 @@ const ShuttleVehicle = () => {
           </p>
         </Card>
 
+        <PickupPointFareSummary
+          vehicle={null}
+          service={service}
+          rayon={rayon}
+          pickupCode={pickupCode}
+          compact
+        />
+
         {VEHICLE_TYPES.length === 0 && (
           <Card className="p-4 text-sm text-muted-foreground">Belum ada kendaraan aktif.</Card>
         )}
 
         {VEHICLE_TYPES.map((v) => {
           const Icon = vehicleIcon[v.id];
-          const total = calcPrice(v, service, rayon) * pax;
+          const total = calcPrice(v, service, rayon, pickupCode) * pax;
           const capacity = getVehicleSeatCount(v.id, service.tier);
           const seatsLeft = getAvailableCount(
             { date, time, rayonId, vehicleId: v.id, tier: service.tier },
@@ -114,7 +124,7 @@ const ShuttleVehicle = () => {
                     Lihat rincian tarif
                   </AccordionTrigger>
                   <AccordionContent className="pb-3">
-                    <FareBreakdownCard vehicle={v} service={service} rayon={rayon} pax={pax} />
+                    <FareBreakdownCard vehicle={v} service={service} rayon={rayon} pickupCode={pickupCode} pax={pax} />
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>

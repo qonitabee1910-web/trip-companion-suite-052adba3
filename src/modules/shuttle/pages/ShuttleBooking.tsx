@@ -11,6 +11,7 @@ import { CheckCircle2, Loader2, Download, FileImage, ArrowLeft } from "lucide-re
 import { toast } from "sonner";
 import { SeatMap } from "../components/SeatMap";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { PickupPointFareSummary } from "../components/PickupPointFareSummary";
 import { PaymentMethodPicker } from "../components/PaymentMethodPicker";
 import { TicketCard } from "../components/TicketCard";
 import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
@@ -340,6 +341,17 @@ const ShuttleBooking = () => {
             <div className="flex justify-between"><span className="text-muted-foreground">Berangkat</span><span className="font-medium">{time}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Penumpang</span><span className="font-medium">{pax}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Kursi</span><span className="font-medium">{selectedSeats.join(", ") || "-"}</span></div>
+          </div>
+
+          {/* Pickup point fare summary */}
+          <div className="mt-3">
+            <PickupPointFareSummary
+              vehicle={vehicle}
+              service={service}
+              rayon={rayon}
+              pickupCode={pickupCode}
+              compact
+            />
           </div>
 
           {/* Fare breakdown */}
