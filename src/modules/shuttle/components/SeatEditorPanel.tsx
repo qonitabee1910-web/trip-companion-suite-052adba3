@@ -228,7 +228,10 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
             ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
             : v,
         );
-        saveVehicleTypes(next);
+        const vRes = await saveVehicleTypes(next);
+        if (!vRes.ok) {
+          console.warn("[SeatEditorPanel] tierPrice save failed:", vRes.error);
+        }
       }
 
       toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan ke cloud — kapasitas ${capacity} kursi`);
