@@ -17,7 +17,28 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core", "react-leaflet", "@radix-ui"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@tanstack/query-core",
+      "react-leaflet",
+      "@radix-ui",
+      "react-hook-form",
+      "sonner",
+      "recharts",
+      "embla-carousel-react",
+      "react-day-picker",
+      "react-barcode",
+      "cmdk",
+      "next-themes",
+      "react-resizable-panels",
+      "@hookform/resolvers",
+      "qrcode.react",
+      "@yudiel/react-qr-scanner",
+    ],
   },
   build: {
     chunkSizeWarningLimit: 600,
@@ -35,14 +56,27 @@ export default defineConfig(({ mode }) => ({
             return "react-vendor";
           }
           if (id.includes("leaflet") && !id.includes("react-leaflet")) return "leaflet-vendor";
-          if (id.includes("react-leaflet") || id.includes("@react-leaflet") || id.includes("@radix-ui")) return "react-vendor";
-          if (id.includes("@supabase") || id.includes("@tanstack/react-query") || id.includes("@tanstack/query-core")) {
-            return "supabase-vendor";
-          }
+          if (
+            id.includes("react-leaflet") ||
+            id.includes("@react-leaflet") ||
+            id.includes("@radix-ui") ||
+            id.includes("react-hook-form") ||
+            id.includes("@hookform") ||
+            id.includes("sonner") ||
+            id.includes("recharts") ||
+            id.includes("embla-carousel") ||
+            id.includes("react-day-picker") ||
+            id.includes("react-barcode") ||
+            id.includes("cmdk") ||
+            id.includes("next-themes") ||
+            id.includes("react-resizable-panels") ||
+            id.includes("qrcode.react") ||
+            id.includes("@yudiel/react-qr-scanner")
+          )
+            return "react-vendor";
+          if (id.includes("@supabase")) return "supabase-vendor";
           if (id.includes("lucide-react")) return "icons-vendor";
-          if (id.includes("recharts") || id.includes("/d3-")) return "charts-vendor";
-          if (id.includes("embla-carousel")) return "carousel-vendor";
-          if (id.includes("date-fns") || id.includes("react-day-picker")) return "date-vendor";
+          if (id.includes("html-to-image") || id.includes("jspdf")) return "export-vendor";
           return "vendor";
         },
       },
