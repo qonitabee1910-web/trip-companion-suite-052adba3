@@ -345,7 +345,7 @@ const RideHome = () => {
           <Card className="rounded-t-2xl rounded-b-none border-b-0 shadow-elevated p-6 text-center">
             <CheckCircle2 className="h-14 w-14 text-success mx-auto mb-3" />
             <h2 className="text-xl font-bold">Perjalanan Selesai!</h2>
-            <p className="text-sm text-muted-foreground mt-1">Terima kasih sudah memesan dengan Traverla</p>
+            <p className="text-sm text-muted-foreground mt-1">Terima kasih sudah memesan dengan PYU-GO</p>
             <div className="flex justify-between text-sm mt-4 p-3 bg-muted/50 rounded-lg">
               <span>Total Pembayaran</span>
               <span className="font-bold text-accent">
