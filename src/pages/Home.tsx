@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { ModuleCard } from "@/shared/components/ModuleCard";
+import { HeadBanner } from "@/shared/components/HeadBanner";
 import { MODULES } from "@/shared/modules";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Search, MapPin, Bell, Shield } from "lucide-react";
+import { Search, Bell, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -25,21 +26,20 @@ const Home = () => {
   const enabledModules = MODULES;
 
   return (
-    <ResponsiveLayout hideMobileHeader>
-      {/* Mobile hero header */}
+    <ResponsiveLayout hideMobileHeader hideWebHeader>
+      {/* Unified PYU-GO hero banner */}
+      <HeadBanner
+        variant="hero"
+        title={isMobile ? "Hai, mau ke mana hari ini?" : "Jalan-jalan, antar-jemput, sampai pesan kendaraan — semua dari PYU-GO."}
+        subtitle={isMobile ? undefined : "Cari penginapan, tiket shuttle antar kota, atau pesan kendaraan instan — dalam satu aplikasi."}
+        rightSlot={isMobile ? <Bell className="h-5 w-5" /> : undefined}
+      >
+      </HeadBanner>
+
+      {/* Mobile search bar (separate band so banner stays clean) */}
       {isMobile && (
-        <div className="bg-gradient-hero pb-6 pt-3 px-4 text-primary-foreground">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white">
-                <MapPin className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-lg font-extrabold">traverla</span>
-            </div>
-            <Bell className="h-5 w-5" />
-          </div>
-          <h1 className="text-xl font-bold leading-tight">Hai, mau ke mana hari ini?</h1>
-          <div className="mt-3 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-foreground">
+        <div className="bg-gradient-hero px-4 pb-6 -mt-2">
+          <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-foreground">
             <Search className="h-4 w-4 text-muted-foreground" />
             <input
               placeholder="Cari hotel, shuttle, tujuan..."
@@ -47,20 +47,6 @@ const Home = () => {
             />
           </div>
         </div>
-      )}
-
-      {/* Web hero */}
-      {!isMobile && (
-        <section className="bg-gradient-hero text-primary-foreground">
-          <div className="container py-10 md:py-14">
-            <h1 className="text-3xl md:text-4xl font-extrabold leading-tight max-w-2xl">
-              Dari pesan hotel sampai pesan kendaraan, semua di Traverla.
-            </h1>
-            <p className="mt-2 text-white/85 max-w-xl">
-              Cari penginapan, tiket shuttle antar kota, atau pesan kendaraan instan — dalam satu aplikasi.
-            </p>
-          </div>
-        </section>
       )}
 
       {/* Modules grid */}
