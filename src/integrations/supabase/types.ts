@@ -75,8 +75,14 @@ export type Database = {
           is_online: boolean
           plate: string | null
           rating: number
+          sim_expiry: string | null
+          sim_url: string | null
+          stnk_url: string | null
           updated_at: string
           vehicle_type: string
+          verification_status: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           current_lat?: number | null
@@ -85,8 +91,14 @@ export type Database = {
           is_online?: boolean
           plate?: string | null
           rating?: number
+          sim_expiry?: string | null
+          sim_url?: string | null
+          stnk_url?: string | null
           updated_at?: string
           vehicle_type?: string
+          verification_status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           current_lat?: number | null
@@ -95,8 +107,14 @@ export type Database = {
           is_online?: boolean
           plate?: string | null
           rating?: number
+          sim_expiry?: string | null
+          sim_url?: string | null
+          stnk_url?: string | null
           updated_at?: string
           vehicle_type?: string
+          verification_status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: []
       }
@@ -269,7 +287,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address: string | null
+          bio: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
           phone: string | null
@@ -277,7 +298,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
+          bio?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
           phone?: string | null
@@ -285,7 +309,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address?: string | null
+          bio?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
