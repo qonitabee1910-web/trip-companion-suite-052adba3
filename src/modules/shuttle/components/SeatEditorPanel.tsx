@@ -611,5 +611,6 @@ ${seatsStr}
         </Card>
       </div>
     </div>
+    </div>
   );
 }
