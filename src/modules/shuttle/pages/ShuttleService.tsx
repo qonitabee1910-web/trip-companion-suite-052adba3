@@ -4,11 +4,14 @@ import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Sparkles, Crown, Gauge } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CheckCircle2, Sparkles, Crown, Gauge, Info } from "lucide-react";
 import { calcPrice, getVehicleTierPrice } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
+import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 
 const tierIcon = {
   reguler: Gauge,
