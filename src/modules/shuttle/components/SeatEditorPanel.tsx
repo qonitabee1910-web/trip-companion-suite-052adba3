@@ -182,27 +182,44 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     setSelectedNum(null);
   };
 
-  const saveLayout = () => {
-    const ok = saveLayoutToStorage(layoutKey, config, !!customImage);
-    if (!ok) {
-      toast.error("Gagal menyimpan (storage penuh?)");
+  const saveLayout = async () => {
+    if (saving) return;
+    if (authStatus !== "admin") {
+      toast.error(authStatus === "no-auth"
+        ? "Login admin diperlukan untuk menyimpan"
+        : "Akun Anda bukan admin");
       return;
     }
-    setHasSaved(true);
-    setUpdatedAt(new Date().toISOString());
+    setSaving(true);
+    try {
+      const result = await saveLayoutToStorage(layoutKey, config, !!customImage);
+      if (!result.ok) {
+        const code = result.error?.code;
+        if (code === "42501") {
+          toast.error("Akses ditolak — login sebagai admin terlebih dahulu");
+        } else {
+          toast.error(`Gagal menyimpan: ${result.error?.message ?? "unknown error"}`);
+        }
+        return;
+      }
+      setHasSaved(true);
+      setUpdatedAt(new Date().toISOString());
 
-    // Persist tierPrice ke vehicles store
-    if (vehicle) {
-      const all = getVehicleTypesAll();
-      const next = all.map((v) =>
-        v.id === vehicleId
-          ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
-          : v,
-      );
-      saveVehicleTypes(next);
+      // Persist tierPrice ke vehicles store
+      if (vehicle) {
+        const all = getVehicleTypesAll();
+        const next = all.map((v) =>
+          v.id === vehicleId
+            ? { ...v, tierPrices: { ...(v.tierPrices ?? {}), [tier]: tierPrice } }
+            : v,
+        );
+        saveVehicleTypes(next);
+      }
+
+      toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan ke cloud — kapasitas ${capacity} kursi`);
+    } finally {
+      setSaving(false);
     }
-
-    toast.success(`${LAYOUT_LABELS[layoutKey]} disimpan — kapasitas ${capacity} kursi, harga Rp${tierPrice.toLocaleString("id-ID")}`);
   };
 
   const clearSaved = () => {
