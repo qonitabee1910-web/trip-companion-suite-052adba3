@@ -81,6 +81,24 @@ const AdminRayons = () => {
   const [newTime, setNewTime] = useState("");
   const [activeCaptureCode, setActiveCaptureCode] = useState<string | null>(null);
   const [fitSignal, setFitSignal] = useState(0);
+  const [authStatus, setAuthStatus] = useState<"loading" | "no-auth" | "no-admin" | "admin">("loading");
+  const [savingTimes, setSavingTimes] = useState(false);
+
+  // Check admin role
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!user) { setAuthStatus("no-auth"); return; }
+      const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      if (cancelled) return;
+      setAuthStatus(data === true ? "admin" : "no-admin");
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const isAdmin = authStatus === "admin";
 
   const persistRayons = (next: Rayon[]) => {
     setRayons(next);
@@ -88,10 +106,33 @@ const AdminRayons = () => {
     toast({ title: "Rayon disimpan", description: `${next.length} rayon aktif.` });
   };
 
-  const persistTimes = (next: string[]) => {
+  const persistTimes = async (next: string[]): Promise<boolean> => {
     const sorted = [...new Set(next)].sort();
+    const previous = times;
     setTimes(sorted);
-    saveDepartTimes(sorted);
+    setSavingTimes(true);
+    const res = await saveDepartTimes(sorted);
+    setSavingTimes(false);
+    if (!res.ok) {
+      // Rollback UI
+      setTimes(previous);
+      if (res.error?.code === "42501") {
+        toast({
+          title: "Akses ditolak",
+          description: "Login admin diperlukan untuk mengubah jam berangkat.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Gagal menyimpan",
+          description: res.error?.message ?? "Terjadi kesalahan.",
+          variant: "destructive",
+        });
+      }
+      return false;
+    }
+    toast({ title: "Tersimpan ke cloud", description: "Jam berangkat berhasil diperbarui." });
+    return true;
   };
 
   const openNew = () => {
