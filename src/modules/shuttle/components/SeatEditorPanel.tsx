@@ -52,6 +52,10 @@ import {
 } from "../data/repository";
 import { uploadSeatLayoutImage, subscribeStore } from "../data/cloudStore";
 import { calcPrice, type VehicleType } from "../data/services";
+import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ShieldAlert } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Props {
   initialKey?: LayoutKey;
