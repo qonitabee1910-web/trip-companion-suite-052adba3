@@ -5,6 +5,7 @@
  */
 import {
   cloudCache,
+  notifyStore,
   persistRayons,
   persistDepartTimes,
   persistServices,
