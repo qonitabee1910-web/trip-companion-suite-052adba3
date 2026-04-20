@@ -1,10 +1,9 @@
 /**
  * Ride module manifest.
  */
-import { createElement } from "react";
 import { Car } from "lucide-react";
 import type { AppModule } from "@/shared/moduleSystem";
-import RideHome from "./pages/RideHome";
+import { lazyEl } from "@/shared/lazyEl";
 
 const rideModule: AppModule = {
   id: "ride",
@@ -15,7 +14,7 @@ const rideModule: AppModule = {
   homePath: "/ride",
   homeEntry: { order: 30 },
   routes: [
-    { path: "/ride", element: createElement(RideHome) },
+    { path: "/ride", element: lazyEl(() => import("./pages/RideHome")) },
   ],
 };
 
