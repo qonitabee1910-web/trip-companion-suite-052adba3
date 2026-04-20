@@ -16,6 +16,7 @@ const driverModule: AppModule = {
   routes: [
     { path: "/driver/login", element: lazyEl(() => import("./pages/DriverLogin")) },
     { path: "/driver", element: lazyEl(() => import("./pages/DriverHome")) },
+    { path: "/driver/profile", element: lazyEl(() => import("./pages/DriverProfile")) },
     { path: "/driver/ride/:id", element: lazyEl(() => import("./pages/DriverActiveRide")) },
     { path: "/driver/shuttle", element: lazyEl(() => import("./pages/DriverShuttleTrip")) },
     { path: "/driver/shuttle/:id", element: lazyEl(() => import("./pages/DriverShuttleTrip")) },

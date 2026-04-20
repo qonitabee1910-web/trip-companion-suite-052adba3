@@ -25,6 +25,7 @@ const shuttleModule: AppModule = {
     { path: "/shuttle/:id/book", element: lazyEl(() => import("./pages/ShuttleBooking")) },
     { path: "/shuttle/login", element: lazyEl(() => import("./pages/CustomerLogin")) },
     { path: "/shuttle/my-bookings", element: lazyEl(() => import("./pages/MyBookings")) },
+    { path: "/shuttle/profile", element: lazyEl(() => import("./pages/CustomerProfile")) },
   ],
   adminRoutes: [
     {
