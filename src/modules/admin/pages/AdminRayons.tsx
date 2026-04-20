@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "../components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,8 @@ import {
   getDestination,
 } from "@/modules/shuttle/data/rayons";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { AlertTriangle } from "lucide-react";
 
 const emptyRayon = (id: RayonId, destShort: string): Rayon => ({
   id,
@@ -79,6 +81,24 @@ const AdminRayons = () => {
   const [newTime, setNewTime] = useState("");
   const [activeCaptureCode, setActiveCaptureCode] = useState<string | null>(null);
   const [fitSignal, setFitSignal] = useState(0);
+  const [authStatus, setAuthStatus] = useState<"loading" | "no-auth" | "no-admin" | "admin">("loading");
+  const [savingTimes, setSavingTimes] = useState(false);
+
+  // Check admin role
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!user) { setAuthStatus("no-auth"); return; }
+      const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      if (cancelled) return;
+      setAuthStatus(data === true ? "admin" : "no-admin");
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const isAdmin = authStatus === "admin";
 
   const persistRayons = (next: Rayon[]) => {
     setRayons(next);
@@ -86,10 +106,33 @@ const AdminRayons = () => {
     toast({ title: "Rayon disimpan", description: `${next.length} rayon aktif.` });
   };
 
-  const persistTimes = (next: string[]) => {
+  const persistTimes = async (next: string[]): Promise<boolean> => {
     const sorted = [...new Set(next)].sort();
+    const previous = times;
     setTimes(sorted);
-    saveDepartTimes(sorted);
+    setSavingTimes(true);
+    const res = await saveDepartTimes(sorted);
+    setSavingTimes(false);
+    if (!res.ok) {
+      // Rollback UI
+      setTimes(previous);
+      if (res.error?.code === "42501") {
+        toast({
+          title: "Akses ditolak",
+          description: "Login admin diperlukan untuk mengubah jam berangkat.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Gagal menyimpan",
+          description: res.error?.message ?? "Terjadi kesalahan.",
+          variant: "destructive",
+        });
+      }
+      return false;
+    }
+    toast({ title: "Tersimpan ke cloud", description: "Jam berangkat berhasil diperbarui." });
+    return true;
   };
 
   const openNew = () => {
@@ -203,16 +246,18 @@ const AdminRayons = () => {
     setEditing({ ...editing, data: { ...editing.data, pickupPoints: pts } });
   };
 
-  const addTime = () => {
+  const addTime = async () => {
     if (!/^\d{2}:\d{2}$/.test(newTime)) {
       toast({ title: "Format jam salah", description: "Gunakan HH:MM (cth 06:00).", variant: "destructive" });
       return;
     }
-    persistTimes([...times, newTime]);
-    setNewTime("");
+    const ok = await persistTimes([...times, newTime]);
+    if (ok) setNewTime("");
   };
 
-  const removeTime = (t: string) => persistTimes(times.filter((x) => x !== t));
+  const removeTime = (t: string) => {
+    void persistTimes(times.filter((x) => x !== t));
+  };
 
   const handleReset = () => {
     resetSection("rayons");
@@ -392,11 +437,40 @@ const AdminRayons = () => {
           <h2 className="font-semibold flex items-center gap-2 mb-4">
             <Clock className="h-4 w-4 text-primary" /> Jam Berangkat Global
           </h2>
+
+          {authStatus === "no-auth" && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Belum login</p>
+                <p className="text-xs text-muted-foreground">
+                  Login admin di <code>/admin/login</code> untuk mengubah jam berangkat.
+                </p>
+              </div>
+            </div>
+          )}
+          {authStatus === "no-admin" && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Akses terbatas</p>
+                <p className="text-xs text-muted-foreground">
+                  Akun ini bukan admin. Perubahan jam berangkat tidak akan tersimpan ke cloud.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 mb-3">
             {times.map((t) => (
               <Badge key={t} variant="secondary" className="text-sm py-1.5 pl-3 pr-1 gap-1">
                 {t}
-                <button onClick={() => removeTime(t)} className="hover:bg-destructive/20 rounded p-0.5">
+                <button
+                  onClick={() => removeTime(t)}
+                  disabled={!isAdmin || savingTimes}
+                  className="hover:bg-destructive/20 rounded p-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={isAdmin ? "Hapus" : "Login admin diperlukan"}
+                >
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
@@ -409,9 +483,10 @@ const AdminRayons = () => {
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
               maxLength={5}
+              disabled={!isAdmin || savingTimes}
             />
-            <Button onClick={addTime} size="sm">
-              <Plus className="h-4 w-4" /> Tambah
+            <Button onClick={addTime} size="sm" disabled={!isAdmin || savingTimes}>
+              <Plus className="h-4 w-4" /> {savingTimes ? "Menyimpan…" : "Tambah"}
             </Button>
           </div>
         </Card>

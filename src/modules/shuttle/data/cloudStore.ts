@@ -496,15 +496,101 @@ export async function persistRayons(rayons: Rayon[]): Promise<void> {
   notify();
 }
 
-export async function persistDepartTimes(times: string[]): Promise<void> {
-  await supabase.from("depart_times").delete().not("id", "is", null);
-  if (times.length > 0) {
-    await supabase
-      .from("depart_times")
-      .insert(times.map((t, i) => ({ time: t, sort_order: i })));
+export interface DepartTimesSaveResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
+export async function persistDepartTimes(times: string[]): Promise<DepartTimesSaveResult> {
+  // Strategy: incremental sync — insert new times, update sort_order on existing,
+  // delete times no longer in list. INSERT acts as the RLS probe (returns 42501
+  // for non-admin), so we INSERT first when there are new entries.
+  const { data: existing, error: fetchErr } = await supabase
+    .from("depart_times")
+    .select("id,time,sort_order");
+  if (fetchErr) {
+    console.error("[cloudStore] persistDepartTimes fetch failed:", fetchErr);
+    return { ok: false, error: { code: fetchErr.code, message: fetchErr.message } };
   }
-  cache.departTimes = times;
-  notify();
+
+  const existingByTime = new Map((existing || []).map((r) => [r.time, r]));
+  const desiredSet = new Set(times);
+
+  const toInsert = times
+    .map((t, i) => ({ time: t, sort_order: i }))
+    .filter((row) => !existingByTime.has(row.time));
+
+  const toDeleteIds = (existing || [])
+    .filter((r) => !desiredSet.has(r.time))
+    .map((r) => r.id);
+
+  const toUpdate = times
+    .map((t, i) => {
+      const ex = existingByTime.get(t);
+      if (ex && ex.sort_order !== i) return { id: ex.id, sort_order: i };
+      return null;
+    })
+    .filter((x): x is { id: string; sort_order: number } => x !== null);
+
+  // INSERT first — primary RLS probe
+  if (toInsert.length > 0) {
+    const insRes = await supabase.from("depart_times").insert(toInsert);
+    if (insRes.error) {
+      console.error("[cloudStore] persistDepartTimes insert failed:", insRes.error);
+      return { ok: false, error: { code: insRes.error.code, message: insRes.error.message } };
+    }
+  } else if (toDeleteIds.length > 0) {
+    // No inserts — verify DELETE actually applies. Use returning to detect RLS silent-fail.
+    const delProbe = await supabase
+      .from("depart_times")
+      .delete()
+      .in("id", toDeleteIds)
+      .select("id");
+    if (delProbe.error) {
+      console.error("[cloudStore] persistDepartTimes delete failed:", delProbe.error);
+      return { ok: false, error: { code: delProbe.error.code, message: delProbe.error.message } };
+    }
+    if ((delProbe.data?.length ?? 0) === 0) {
+      return {
+        ok: false,
+        error: { code: "42501", message: "row-level security: delete blocked" },
+      };
+    }
+    // Then handle updates
+    for (const u of toUpdate) {
+      const upRes = await supabase
+        .from("depart_times")
+        .update({ sort_order: u.sort_order })
+        .eq("id", u.id);
+      if (upRes.error) {
+        return { ok: false, error: { code: upRes.error.code, message: upRes.error.message } };
+      }
+    }
+    return { ok: true };
+  }
+
+  // UPDATE sort_orders
+  for (const u of toUpdate) {
+    const upRes = await supabase
+      .from("depart_times")
+      .update({ sort_order: u.sort_order })
+      .eq("id", u.id);
+    if (upRes.error) {
+      console.error("[cloudStore] persistDepartTimes update failed:", upRes.error);
+      return { ok: false, error: { code: upRes.error.code, message: upRes.error.message } };
+    }
+  }
+
+  // DELETE removed times (after insert succeeded above)
+  if (toInsert.length > 0 && toDeleteIds.length > 0) {
+    const delRes = await supabase.from("depart_times").delete().in("id", toDeleteIds);
+    if (delRes.error) {
+      console.error("[cloudStore] persistDepartTimes delete failed:", delRes.error);
+      return { ok: false, error: { code: delRes.error.code, message: delRes.error.message } };
+    }
+  }
+
+  return { ok: true };
 }
 
 export async function persistServices(services: ServiceConfig[]): Promise<void> {
