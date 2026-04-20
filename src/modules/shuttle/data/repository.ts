@@ -152,16 +152,26 @@ export function deleteBooking(id: string) {
 export function getDestinationStored(): Destination {
   return cloudCache.destination;
 }
-export function saveDestination(d: Destination) {
+export async function saveDestination(d: Destination): Promise<SaveResult> {
+  const previous = cloudCache.destination;
   cloudCache.destination = d;
-  void persistDestination(d);
+  const res = await persistDestination(d);
+  if (!res.ok) {
+    cloudCache.destination = previous;
+  }
+  return res;
 }
 export function getContentStored(): ShuttleContent {
   return cloudCache.content;
 }
-export function saveContent(c: ShuttleContent) {
+export async function saveContent(c: ShuttleContent): Promise<SaveResult> {
+  const previous = cloudCache.content;
   cloudCache.content = c;
-  void persistContent(c);
+  const res = await persistContent(c);
+  if (!res.ok) {
+    cloudCache.content = previous;
+  }
+  return res;
 }
 
 // ---------- Reset (re-seed defaults locally + push) ----------
