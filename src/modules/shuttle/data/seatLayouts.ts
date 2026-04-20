@@ -316,6 +316,41 @@ export function hasStoredLayout(key: VehicleKey): boolean {
   return !!cloudCache.seatLayouts[normalizeKey(key)];
 }
 
+export interface CopyLayoutResult {
+  ok: number;
+  failed: { key: LayoutKey; message: string }[];
+}
+
+/**
+ * Copy current source config to multiple target LayoutKeys.
+ * - includeImage=false → keep each target's existing image (cloud or preset).
+ * - Sequential to surface per-target errors without aborting the rest.
+ */
+export async function copyLayoutToTargets(
+  source: SeatLayoutConfig,
+  targetKeys: LayoutKey[],
+  includeImage: boolean,
+): Promise<CopyLayoutResult> {
+  const failed: { key: LayoutKey; message: string }[] = [];
+  let ok = 0;
+  for (const tKey of targetKeys) {
+    const targetImage = includeImage
+      ? source.image
+      : (cloudCache.seatLayouts[tKey]?.image || LAYOUT_PRESETS[tKey].image);
+    const merged: SeatLayoutConfig = {
+      image: targetImage,
+      aspect: source.aspect,
+      driverSeat: { ...source.driverSeat },
+      seats: source.seats.map((s) => ({ ...s })),
+      seatSize: source.seatSize,
+    };
+    const res = await saveLayoutToStorage(tKey, merged, true);
+    if (res.ok) ok++;
+    else failed.push({ key: tKey, message: res.error?.message || "gagal" });
+  }
+  return { ok, failed };
+}
+
 /** Returns the ISO timestamp of last cloud update for this layout, or null if not stored. */
 export function getLayoutUpdatedAt(key: VehicleKey): string | null {
   return cloudCache.seatLayoutTimestamps[normalizeKey(key)] || null;
