@@ -115,7 +115,23 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const [hasSaved, setHasSaved] = useState(() => hasStoredLayout(startKey));
   const [updatedAt, setUpdatedAt] = useState<string | null>(() => getLayoutUpdatedAt(startKey));
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [authStatus, setAuthStatus] = useState<"loading" | "no-auth" | "no-admin" | "admin">("loading");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Check admin role on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!user) { setAuthStatus("no-auth"); return; }
+      const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      if (cancelled) return;
+      setAuthStatus(data === true ? "admin" : "no-admin");
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Subscribe to cloud store so badge timestamp refreshes when realtime fires
   useEffect(() => {
