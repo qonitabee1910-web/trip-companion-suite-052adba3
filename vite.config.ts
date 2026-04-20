@@ -19,4 +19,33 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (
+            id.includes("/react-dom/") ||
+            id.includes("/react/") ||
+            id.includes("/scheduler/") ||
+            id.includes("/react-router") ||
+            id.includes("/react-router-dom/")
+          ) {
+            return "react-vendor";
+          }
+          if (id.includes("@radix-ui")) return "radix-vendor";
+          if (id.includes("leaflet") || id.includes("react-leaflet")) return "leaflet-vendor";
+          if (id.includes("@supabase") || id.includes("@tanstack/react-query") || id.includes("@tanstack/query-core")) {
+            return "supabase-vendor";
+          }
+          if (id.includes("lucide-react")) return "icons-vendor";
+          if (id.includes("recharts") || id.includes("/d3-")) return "charts-vendor";
+          if (id.includes("embla-carousel")) return "carousel-vendor";
+          if (id.includes("date-fns") || id.includes("react-day-picker")) return "date-vendor";
+          return "vendor";
+        },
+      },
+    },
+  },
 }));
