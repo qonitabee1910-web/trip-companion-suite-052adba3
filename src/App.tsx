@@ -35,6 +35,7 @@ import AdminScan from "./modules/admin/pages/AdminScan";
 import AdminSeatEditor from "./modules/admin/pages/AdminSeatEditor";
 import AdminShuttleContent from "./modules/admin/pages/AdminShuttleContent";
 import AdminInventory from "./modules/admin/pages/AdminInventory";
+import AdminLogin from "./modules/admin/pages/AdminLogin";
 
 import { CloudGate } from "./shared/components/CloudGate";
 
