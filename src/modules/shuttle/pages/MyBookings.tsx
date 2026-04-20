@@ -127,15 +127,8 @@ const MyBookings = () => {
 
   const empty = useMemo(() => !loading && bookings && bookings.length === 0, [loading, bookings]);
 
-  if (authChecking) {
-    return (
-      <ResponsiveLayout mobileTitle="Riwayat Booking">
-        <div className="flex-1 flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      </ResponsiveLayout>
-    );
-  }
+  // RequireAuth handles auth gating; no local auth-loading state needed.
+
 
   return (
     <ResponsiveLayout
