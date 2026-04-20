@@ -92,8 +92,8 @@ const AdminVehicles = () => {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button size="sm" onClick={handleSave}>
-              <Save className="h-4 w-4" /> Simpan
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4" /> {saving ? "Menyimpan…" : "Simpan"}
             </Button>
           </div>
         </div>
