@@ -3,7 +3,7 @@
  * Domain-specific admin routes (shuttle, etc.) live inside their own modules
  * and are aggregated by AdminSidebar via the registry.
  */
-import { LayoutDashboard, Shield } from "lucide-react";
+import { LayoutDashboard, Shield, CreditCard } from "lucide-react";
 import type { AppModule } from "@/shared/moduleSystem";
 import { lazyEl } from "@/shared/lazyEl";
 
@@ -21,6 +21,11 @@ const adminModule: AppModule = {
       path: "/admin",
       element: lazyEl(() => import("./pages/AdminDashboard")),
       sidebar: { label: "Dashboard", icon: LayoutDashboard, group: "Operasional", order: 10, end: true },
+    },
+    {
+      path: "/admin/payments",
+      element: lazyEl(() => import("./pages/AdminPayments")),
+      sidebar: { label: "Pembayaran", icon: CreditCard, group: "Setup Layanan", order: 50 },
     },
   ],
 };
