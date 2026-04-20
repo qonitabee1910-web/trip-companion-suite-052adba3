@@ -47,13 +47,13 @@
 
     --border: 214 25% 90%;
     --input: 214 25% 90%;
-    --ring: 202 99% 48%;
+    --ring: 202 89% 60%;
 
     --radius: 0.625rem;
 
     --shadow-card: 0 2px 8px -2px hsl(215 28% 17% / 0.08);
-    --shadow-elevated: 0 8px 24px -8px hsl(215 28% 17% / 0.15);
-    --gradient-hero: linear-gradient(135deg, hsl(202 99% 48%), hsl(202 99% 38%));
+    --shadow-elevated: 0 8px 24px -8px hsl(202 89% 40% / 0.18);
+    --gradient-hero: linear-gradient(135deg, hsl(199 95% 74%), hsl(202 89% 50%));
     --gradient-promo: linear-gradient(135deg, hsl(16 100% 56%), hsl(28 100% 56%));
 
     --sidebar-background: 0 0% 100%;
