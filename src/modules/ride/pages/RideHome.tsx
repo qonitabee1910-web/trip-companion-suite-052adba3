@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, MapPin, Search, Bike, Car, Users, Star, Phone, MessageCircle, X, CheckCircle2, Radio, AlertCircle } from "lucide-react";
 import { POIS, RIDE_OPTIONS, DRIVERS, DEFAULT_LOCATION, distanceKm } from "../data/ride";
 import type { POI, RideOption } from "../data/ride";
-import { useLiveDriverPosition, findNearestOnlineDriver } from "../hooks/useLiveDriverPosition";
+import { useLiveDriverPosition } from "../hooks/useLiveDriverPosition";
 import { useRideRequest } from "../hooks/useRideRequest";
 import { LocationPicker } from "../components/LocationPicker";
 import { RideConfirmationSheet } from "../components/RideConfirmationSheet";
@@ -122,7 +122,7 @@ const RideHome = () => {
   useEffect(() => {
     if (stage !== "ongoing" || !pickup || !dest) return;
 
-    setDemoDriver && setDriverPos({ ...pickup });
+    setDriverPos({ ...pickup });
     let t = 0;
     const interval = setInterval(() => {
       t += 0.015;

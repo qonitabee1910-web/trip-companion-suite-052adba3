@@ -17,7 +17,24 @@ export interface RideState {
   error: string | null;
 }
 
-export function useRideRequest() {
+export interface UseRideRequestReturn extends RideState {
+  requestRide: (
+    pickupLat: number,
+    pickupLng: number,
+    pickupName: string,
+    destLat: number,
+    destLng: number,
+    destName: string,
+    rideType: string,
+    fare: number,
+    distanceKm: number
+  ) => Promise<RideRequest | null>;
+  loadRide: (rideId: string) => Promise<void>;
+  cancel: () => Promise<boolean>;
+  reset: () => void;
+}
+
+export function useRideRequest(): UseRideRequestReturn {
   const { user } = useAuth();
   const [state, setState] = useState<RideState>({
     rideId: null,
