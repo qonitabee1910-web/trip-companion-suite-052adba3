@@ -2,7 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plane, MapPin, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plane, MapPin, ArrowRight, Ticket } from "lucide-react";
 import { getRayons, getDestinationStored, getContentStored } from "../data/repository";
 
 const rayonAccent: Record<string, string> = {
