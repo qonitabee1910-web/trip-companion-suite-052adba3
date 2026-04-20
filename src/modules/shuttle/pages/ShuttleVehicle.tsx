@@ -4,11 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, AlertTriangle, Bus, Car, Caravan } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { calcPrice, getService, getVehicleSeatCount } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { getAvailableCount } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
+import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import hiaceImg from "@/assets/shuttle/base-hiace.png";
 
 const vehicleIcon = { hiace: Bus, suv: Car, minicar: Caravan } as const;
