@@ -42,10 +42,23 @@ export function getRayonById(id: string): Rayon | undefined {
 export function getDepartTimes(): string[] {
   return cloudCache.departTimes;
 }
-export function saveDepartTimes(times: string[]) {
+
+export interface SaveDepartTimesResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
+export async function saveDepartTimes(times: string[]): Promise<SaveDepartTimesResult> {
+  const previous = cloudCache.departTimes;
   const sorted = [...new Set(times)].sort();
+  // Optimistic update
   cloudCache.departTimes = sorted;
-  void persistDepartTimes(sorted);
+  const res = await persistDepartTimes(sorted);
+  if (!res.ok) {
+    // Rollback
+    cloudCache.departTimes = previous;
+  }
+  return res;
 }
 
 // ---------- Services ----------
