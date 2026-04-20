@@ -77,6 +77,10 @@ const listeners = new Set<() => void>();
 function notify() {
   listeners.forEach((l) => l());
 }
+/** Public notify for callers that mutate `cloudCache` directly (e.g. repository rollback). */
+export function notifyStore() {
+  notify();
+}
 export function subscribeStore(fn: () => void) {
   listeners.add(fn);
   return () => listeners.delete(fn);
@@ -454,10 +458,15 @@ export function isHydrated() {
 }
 
 // ============== Mutations ==============
-export async function persistRayons(rayons: Rayon[]): Promise<void> {
-  // Replace-all strategy via upsert + delete missing
-  const ids = rayons.map((r) => r.id);
-  // Upsert rayon rows
+
+/** Generic save result returned by all persist* functions. */
+export interface SaveResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
+export async function persistRayons(rayons: Rayon[]): Promise<SaveResult> {
+  // Upsert rayon rows — primary RLS probe
   const rayonRows = rayons.map((r, idx) => ({
     id: r.id,
     name: r.name,
@@ -469,16 +478,35 @@ export async function persistRayons(rayons: Rayon[]): Promise<void> {
     per_pickup_fare: r.perPickupFare ?? false,
     sort_order: idx,
   }));
-  await supabase.from("rayons").upsert(rayonRows);
-  if (ids.length > 0) {
-    // delete rayons not in list
-    await supabase.from("rayons").delete().not("id", "in", `(${ids.map((i) => `"${i}"`).join(",")})`);
+  const upRes = await supabase.from("rayons").upsert(rayonRows).select("id");
+  if (upRes.error) {
+    console.error("[cloudStore] persistRayons upsert failed:", upRes.error);
+    return { ok: false, error: { code: upRes.error.code, message: upRes.error.message } };
   }
-  // Pickup points: delete + reinsert per rayon (simple)
+  // RLS silent-fail probe: if we sent rows but got 0 back, likely blocked
+  if (rayonRows.length > 0 && (upRes.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
+
+  const ids = rayons.map((r) => r.id);
+  if (ids.length > 0) {
+    const delRes = await supabase
+      .from("rayons")
+      .delete()
+      .not("id", "in", `(${ids.map((i) => `"${i}"`).join(",")})`);
+    if (delRes.error) {
+      console.error("[cloudStore] persistRayons delete failed:", delRes.error);
+      return { ok: false, error: { code: delRes.error.code, message: delRes.error.message } };
+    }
+  }
+  // Pickup points: delete + reinsert per rayon
   for (const r of rayons) {
-    await supabase.from("pickup_points").delete().eq("rayon_id", r.id);
+    const ppDel = await supabase.from("pickup_points").delete().eq("rayon_id", r.id);
+    if (ppDel.error) {
+      return { ok: false, error: { code: ppDel.error.code, message: ppDel.error.message } };
+    }
     if (r.pickupPoints.length > 0) {
-      await supabase.from("pickup_points").insert(
+      const ppIns = await supabase.from("pickup_points").insert(
         r.pickupPoints.map((p, i) => ({
           rayon_id: r.id,
           code: p.code,
@@ -490,18 +518,19 @@ export async function persistRayons(rayons: Rayon[]): Promise<void> {
           sort_order: i,
         })),
       );
+      if (ppIns.error) {
+        return { ok: false, error: { code: ppIns.error.code, message: ppIns.error.message } };
+      }
     }
   }
   cache.rayons = rayons;
   notify();
+  return { ok: true };
 }
 
-export interface DepartTimesSaveResult {
-  ok: boolean;
-  error?: { code?: string; message: string };
-}
+export type DepartTimesSaveResult = SaveResult;
 
-export async function persistDepartTimes(times: string[]): Promise<DepartTimesSaveResult> {
+export async function persistDepartTimes(times: string[]): Promise<SaveResult> {
   // Strategy: incremental sync — insert new times, update sort_order on existing,
   // delete times no longer in list. INSERT acts as the RLS probe (returns 42501
   // for non-admin), so we INSERT first when there are new entries.
@@ -593,48 +622,84 @@ export async function persistDepartTimes(times: string[]): Promise<DepartTimesSa
   return { ok: true };
 }
 
-export async function persistServices(services: ServiceConfig[]): Promise<void> {
-  await supabase.from("services").upsert(
-    services.map((s, i) => ({
-      tier: s.tier,
-      label: s.label,
-      description: s.description,
-      price_multiplier: s.priceMultiplier,
-      features: s.features,
-      active: s.active ?? true,
-      sort_order: i,
-    })),
-  );
+export async function persistServices(services: ServiceConfig[]): Promise<SaveResult> {
+  const rows = services.map((s, i) => ({
+    tier: s.tier,
+    label: s.label,
+    description: s.description,
+    price_multiplier: s.priceMultiplier,
+    features: s.features,
+    active: s.active ?? true,
+    sort_order: i,
+  }));
+  const res = await supabase.from("services").upsert(rows).select("tier");
+  if (res.error) {
+    console.error("[cloudStore] persistServices failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if (rows.length > 0 && (res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.services = services;
   notify();
+  return { ok: true };
 }
 
-export async function persistVehicles(vehicles: VehicleType[]): Promise<void> {
-  await supabase.from("vehicle_types").upsert(
-    vehicles.map((v, i) => ({
-      id: v.id,
-      label: v.label,
-      vehicle_name: v.vehicleName,
-      description: v.description,
-      tier_prices: v.tierPrices ?? {},
-      active: v.active ?? true,
-      sort_order: i,
-    })),
-  );
+export async function persistVehicles(vehicles: VehicleType[]): Promise<SaveResult> {
+  const rows = vehicles.map((v, i) => ({
+    id: v.id,
+    label: v.label,
+    vehicle_name: v.vehicleName,
+    description: v.description,
+    tier_prices: v.tierPrices ?? {},
+    active: v.active ?? true,
+    sort_order: i,
+  }));
+  const res = await supabase.from("vehicle_types").upsert(rows).select("id");
+  if (res.error) {
+    console.error("[cloudStore] persistVehicles failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if (rows.length > 0 && (res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.vehicles = vehicles;
   notify();
+  return { ok: true };
 }
 
-export async function persistDestination(d: Destination): Promise<void> {
-  await supabase.from("shuttle_settings").upsert({ key: "destination", value: d as any });
+export async function persistDestination(d: Destination): Promise<SaveResult> {
+  const res = await supabase
+    .from("shuttle_settings")
+    .upsert({ key: "destination", value: d as any })
+    .select("key");
+  if (res.error) {
+    console.error("[cloudStore] persistDestination failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if ((res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.destination = d;
   notify();
+  return { ok: true };
 }
 
-export async function persistContent(c: ShuttleContent): Promise<void> {
-  await supabase.from("shuttle_settings").upsert({ key: "content", value: c as any });
+export async function persistContent(c: ShuttleContent): Promise<SaveResult> {
+  const res = await supabase
+    .from("shuttle_settings")
+    .upsert({ key: "content", value: c as any })
+    .select("key");
+  if (res.error) {
+    console.error("[cloudStore] persistContent failed:", res.error);
+    return { ok: false, error: { code: res.error.code, message: res.error.message } };
+  }
+  if ((res.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
   cache.content = c;
   notify();
+  return { ok: true };
 }
 
 // Bookings

@@ -5,6 +5,7 @@
  */
 import {
   cloudCache,
+  notifyStore,
   persistRayons,
   persistDepartTimes,
   persistServices,
@@ -26,13 +27,27 @@ import {
 } from "./services";
 import type { ShuttleBooking, BookingStatus } from "../types/booking";
 
+// ---------- Generic Save Result ----------
+export interface SaveResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
 // ---------- Rayons ----------
 export function getRayons(): Rayon[] {
   return cloudCache.rayons;
 }
-export function saveRayons(rayons: Rayon[]) {
+export async function saveRayons(rayons: Rayon[]): Promise<SaveResult> {
+  const previous = cloudCache.rayons;
+  // Optimistic update so subscribers see the change immediately
   cloudCache.rayons = rayons;
-  void persistRayons(rayons);
+  notifyStore();
+  const res = await persistRayons(rayons);
+  if (!res.ok) {
+    cloudCache.rayons = previous;
+    notifyStore();
+  }
+  return res;
 }
 export function getRayonById(id: string): Rayon | undefined {
   return cloudCache.rayons.find((r) => r.id.toUpperCase() === id.toUpperCase());
@@ -43,20 +58,17 @@ export function getDepartTimes(): string[] {
   return cloudCache.departTimes;
 }
 
-export interface SaveDepartTimesResult {
-  ok: boolean;
-  error?: { code?: string; message: string };
-}
+export type SaveDepartTimesResult = SaveResult;
 
-export async function saveDepartTimes(times: string[]): Promise<SaveDepartTimesResult> {
+export async function saveDepartTimes(times: string[]): Promise<SaveResult> {
   const previous = cloudCache.departTimes;
   const sorted = [...new Set(times)].sort();
-  // Optimistic update
   cloudCache.departTimes = sorted;
+  notifyStore();
   const res = await persistDepartTimes(sorted);
   if (!res.ok) {
-    // Rollback
     cloudCache.departTimes = previous;
+    notifyStore();
   }
   return res;
 }
@@ -65,9 +77,16 @@ export async function saveDepartTimes(times: string[]): Promise<SaveDepartTimesR
 export function getServicesAll(): ServiceConfig[] {
   return cloudCache.services;
 }
-export function saveServices(services: ServiceConfig[]) {
+export async function saveServices(services: ServiceConfig[]): Promise<SaveResult> {
+  const previous = cloudCache.services;
   cloudCache.services = services;
-  void persistServices(services);
+  notifyStore();
+  const res = await persistServices(services);
+  if (!res.ok) {
+    cloudCache.services = previous;
+    notifyStore();
+  }
+  return res;
 }
 export function getServiceByTier(tier: string): ServiceConfig | undefined {
   return cloudCache.services.find((s) => s.tier === tier);
@@ -77,9 +96,16 @@ export function getServiceByTier(tier: string): ServiceConfig | undefined {
 export function getVehicleTypesAll(): VehicleType[] {
   return cloudCache.vehicles;
 }
-export function saveVehicleTypes(vehicles: VehicleType[]) {
+export async function saveVehicleTypes(vehicles: VehicleType[]): Promise<SaveResult> {
+  const previous = cloudCache.vehicles;
   cloudCache.vehicles = vehicles;
-  void persistVehicles(vehicles);
+  notifyStore();
+  const res = await persistVehicles(vehicles);
+  if (!res.ok) {
+    cloudCache.vehicles = previous;
+    notifyStore();
+  }
+  return res;
 }
 export function getVehicleTypeById(id: string): VehicleType | undefined {
   return cloudCache.vehicles.find((v) => v.id === id);
@@ -134,16 +160,30 @@ export function deleteBooking(id: string) {
 export function getDestinationStored(): Destination {
   return cloudCache.destination;
 }
-export function saveDestination(d: Destination) {
+export async function saveDestination(d: Destination): Promise<SaveResult> {
+  const previous = cloudCache.destination;
   cloudCache.destination = d;
-  void persistDestination(d);
+  notifyStore();
+  const res = await persistDestination(d);
+  if (!res.ok) {
+    cloudCache.destination = previous;
+    notifyStore();
+  }
+  return res;
 }
 export function getContentStored(): ShuttleContent {
   return cloudCache.content;
 }
-export function saveContent(c: ShuttleContent) {
+export async function saveContent(c: ShuttleContent): Promise<SaveResult> {
+  const previous = cloudCache.content;
   cloudCache.content = c;
-  void persistContent(c);
+  notifyStore();
+  const res = await persistContent(c);
+  if (!res.ok) {
+    cloudCache.content = previous;
+    notifyStore();
+  }
+  return res;
 }
 
 // ---------- Reset (re-seed defaults locally + push) ----------
@@ -171,22 +211,22 @@ import {
 export function resetSection(section: ResettableSection) {
   switch (section) {
     case "rayons":
-      saveRayons(DEFAULT_RAYONS);
+      void saveRayons(DEFAULT_RAYONS);
       break;
     case "times":
-      saveDepartTimes(DEFAULT_TIMES);
+      void saveDepartTimes(DEFAULT_TIMES);
       break;
     case "services":
-      saveServices(DEFAULT_SERVICES);
+      void saveServices(DEFAULT_SERVICES);
       break;
     case "vehicles":
-      saveVehicleTypes(DEFAULT_VEHICLES);
+      void saveVehicleTypes(DEFAULT_VEHICLES);
       break;
     case "destination":
-      saveDestination(DEFAULT_DESTINATION);
+      void saveDestination(DEFAULT_DESTINATION);
       break;
     case "content":
-      saveContent(DEFAULT_CONTENT);
+      void saveContent(DEFAULT_CONTENT);
       break;
     case "bookings":
       // delete all current bookings client-side, fire deletes

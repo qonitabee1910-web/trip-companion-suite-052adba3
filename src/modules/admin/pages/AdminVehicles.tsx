@@ -31,9 +31,31 @@ const AdminVehicles = () => {
     setVehicles((prev) => prev.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
   };
 
-  const handleSave = () => {
-    saveVehicleTypes(vehicles);
-    toast({ title: "Kendaraan disimpan" });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    const res = await saveVehicleTypes(vehicles);
+    setSaving(false);
+    if (!res.ok) {
+      if (res.error?.code === "42501") {
+        toast({
+          title: "Akses ditolak",
+          description: "Login admin diperlukan untuk menyimpan kendaraan.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Gagal menyimpan",
+          description: res.error?.message ?? "Terjadi kesalahan.",
+          variant: "destructive",
+        });
+      }
+      setVehicles(getVehicleTypesAll());
+      return;
+    }
+    toast({ title: "Kendaraan disimpan", description: "Perubahan tersimpan ke cloud." });
   };
 
   const handleReset = () => {
@@ -70,8 +92,8 @@ const AdminVehicles = () => {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button size="sm" onClick={handleSave}>
-              <Save className="h-4 w-4" /> Simpan
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4" /> {saving ? "Menyimpan…" : "Simpan"}
             </Button>
           </div>
         </div>
