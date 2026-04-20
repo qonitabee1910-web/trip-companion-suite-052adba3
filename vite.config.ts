@@ -38,6 +38,8 @@ export default defineConfig(({ mode }) => ({
       "@hookform/resolvers",
       "qrcode.react",
       "@yudiel/react-qr-scanner",
+      "input-otp",
+      "react-router-dom",
     ],
   },
   build: {
@@ -71,7 +73,8 @@ export default defineConfig(({ mode }) => ({
             id.includes("next-themes") ||
             id.includes("react-resizable-panels") ||
             id.includes("qrcode.react") ||
-            id.includes("@yudiel/react-qr-scanner")
+            id.includes("@yudiel/react-qr-scanner") ||
+            id.includes("input-otp")
           )
             return "react-vendor";
           if (id.includes("@supabase")) return "supabase-vendor";
