@@ -45,7 +45,7 @@ const Home = () => {
       )}
 
       {/* Modules grid */}
-      <section className={isMobile ? "px-3 -mt-4" : "container -mt-10"}>
+      <section className={isMobile ? "px-3 mt-4" : "container -mt-6"}>
         <Card className="shadow-elevated">
           <div className={`p-4 md:p-6 grid gap-4 ${isMobile ? "grid-cols-4" : "grid-cols-4 md:grid-cols-8"}`}>
             {enabledModules.map((m) => (
@@ -61,7 +61,7 @@ const Home = () => {
 
 
       {/* Recommendations */}
-      <section className={isMobile ? "px-3 mt-6 pb-8" : "container mt-10 pb-12"}>
+      <section className={isMobile ? "px-3 mt-8 pb-8" : "container mt-10 pb-12"}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg md:text-xl font-bold">Rekomendasi Hotel</h2>
           <button className="text-sm font-medium text-primary">Lihat semua</button>
