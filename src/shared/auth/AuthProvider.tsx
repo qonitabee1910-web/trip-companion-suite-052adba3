@@ -14,11 +14,14 @@ export interface ProfileRow {
   bio?: string | null;
 }
 
+export type DriverVerificationStatus = "pending" | "verified" | "rejected" | null;
+
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
   profile: ProfileRow | null;
   roles: AppRole[];
+  driverVerificationStatus: DriverVerificationStatus;
   loading: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;

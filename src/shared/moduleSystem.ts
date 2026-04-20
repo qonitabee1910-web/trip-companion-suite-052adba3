@@ -12,12 +12,19 @@
  */
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import type { AppRole } from "./auth/AuthProvider";
 
 export type ModuleColor = "hotel" | "shuttle" | "ride" | "primary" | "accent";
 
 export interface ModuleRoute {
   path: string;
   element: ReactNode;
+  /** When true, route requires an authenticated user. */
+  requireAuth?: boolean;
+  /** When set, route requires this role (implies requireAuth). */
+  requireRole?: AppRole;
+  /** When true (driver only), driver must be verified. */
+  requireVerified?: boolean;
 }
 
 export interface AdminSidebarEntry {
