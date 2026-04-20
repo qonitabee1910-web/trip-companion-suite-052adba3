@@ -504,6 +504,15 @@ ${seatsStr}
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Menyimpan…" : "Simpan ke tampilan user"}
             </Button>
+            <Button
+              onClick={() => { setCopyTargets([]); setCopyOpen(true); }}
+              size="sm"
+              variant="outline"
+              className="col-span-2"
+              disabled={authStatus !== "admin"}
+            >
+              <CopyCheck className="h-4 w-4" />Salin layout ke kombinasi lain…
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
