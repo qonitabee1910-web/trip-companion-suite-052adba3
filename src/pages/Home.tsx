@@ -22,14 +22,14 @@ const Home = () => {
 
   return (
     <ResponsiveLayout hideMobileHeader hideWebHeader>
-      {/* Unified PYU-GO hero banner */}
+      {/* Unified PYU-GO hero banner with image carousel */}
       <HeadBanner
         variant="hero"
         title={isMobile ? "Hai, mau ke mana hari ini?" : "Jalan-jalan, antar-jemput, sampai pesan kendaraan — semua dari PYU-GO."}
         subtitle={isMobile ? undefined : "Cari penginapan, tiket shuttle antar kota, atau pesan kendaraan instan — dalam satu aplikasi."}
-        rightSlot={isMobile ? <Bell className="h-5 w-5" /> : undefined}
-      >
-      </HeadBanner>
+        rightSlot={isMobile ? <Bell className="h-5 w-5 drop-shadow" /> : undefined}
+        banners={DEFAULT_HERO_BANNERS}
+      />
 
       {/* Mobile search bar (separate band so banner stays clean) */}
       {isMobile && (
