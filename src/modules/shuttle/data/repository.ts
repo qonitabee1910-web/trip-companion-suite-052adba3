@@ -39,10 +39,13 @@ export function getRayons(): Rayon[] {
 }
 export async function saveRayons(rayons: Rayon[]): Promise<SaveResult> {
   const previous = cloudCache.rayons;
+  // Optimistic update so subscribers see the change immediately
   cloudCache.rayons = rayons;
+  notifyStore();
   const res = await persistRayons(rayons);
   if (!res.ok) {
     cloudCache.rayons = previous;
+    notifyStore();
   }
   return res;
 }
@@ -60,12 +63,12 @@ export type SaveDepartTimesResult = SaveResult;
 export async function saveDepartTimes(times: string[]): Promise<SaveResult> {
   const previous = cloudCache.departTimes;
   const sorted = [...new Set(times)].sort();
-  // Optimistic update
   cloudCache.departTimes = sorted;
+  notifyStore();
   const res = await persistDepartTimes(sorted);
   if (!res.ok) {
-    // Rollback
     cloudCache.departTimes = previous;
+    notifyStore();
   }
   return res;
 }
@@ -77,9 +80,11 @@ export function getServicesAll(): ServiceConfig[] {
 export async function saveServices(services: ServiceConfig[]): Promise<SaveResult> {
   const previous = cloudCache.services;
   cloudCache.services = services;
+  notifyStore();
   const res = await persistServices(services);
   if (!res.ok) {
     cloudCache.services = previous;
+    notifyStore();
   }
   return res;
 }
@@ -94,9 +99,11 @@ export function getVehicleTypesAll(): VehicleType[] {
 export async function saveVehicleTypes(vehicles: VehicleType[]): Promise<SaveResult> {
   const previous = cloudCache.vehicles;
   cloudCache.vehicles = vehicles;
+  notifyStore();
   const res = await persistVehicles(vehicles);
   if (!res.ok) {
     cloudCache.vehicles = previous;
+    notifyStore();
   }
   return res;
 }
