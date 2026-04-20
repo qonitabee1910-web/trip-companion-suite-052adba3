@@ -667,6 +667,59 @@ ${seatsStr}
         </Card>
       </div>
     </div>
-    </div>
+
+    <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Salin layout ke kombinasi lain</DialogTitle>
+          <DialogDescription>
+            Pilih satu atau lebih kombinasi tujuan. Layout aktif <strong>{LAYOUT_LABELS[layoutKey]}</strong> akan ditimpa ke target.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto rounded-md border p-2">
+            {LAYOUT_KEYS.filter((k) => k !== layoutKey).map((k) => {
+              const checked = copyTargets.includes(k);
+              return (
+                <label
+                  key={k}
+                  className={`flex items-center gap-2 rounded-md border p-2 text-sm cursor-pointer ${
+                    checked ? "border-primary bg-primary/5" : ""
+                  }`}
+                >
+                  <Checkbox checked={checked} onCheckedChange={() => toggleCopyTarget(k)} />
+                  <span className="flex-1">{LAYOUT_LABELS[k]}</span>
+                  {hasStoredLayout(k) && (
+                    <Badge variant="outline" className="text-[10px]">tersimpan</Badge>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-2">
+            <div>
+              <Label htmlFor="copy-img" className="cursor-pointer">Sertakan gambar denah</Label>
+              <p className="text-[11px] text-muted-foreground">
+                {copyIncludeImage
+                  ? "Gambar source akan dipakai semua target."
+                  : "Gambar tiap target tetap, hanya posisi kursi & driver yang disalin."}
+              </p>
+            </div>
+            <Switch id="copy-img" checked={copyIncludeImage} onCheckedChange={setCopyIncludeImage} />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setCopyOpen(false)} disabled={copying}>Batal</Button>
+          <Button onClick={handleCopyToTargets} disabled={copying || copyTargets.length === 0}>
+            {copying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CopyCheck className="h-4 w-4" />}
+            Salin ke {copyTargets.length} kombinasi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
