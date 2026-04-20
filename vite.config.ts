@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core", "react-leaflet"],
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core", "react-leaflet", "@radix-ui"],
   },
   build: {
     chunkSizeWarningLimit: 600,
@@ -34,9 +34,8 @@ export default defineConfig(({ mode }) => ({
           ) {
             return "react-vendor";
           }
-          if (id.includes("@radix-ui")) return "radix-vendor";
           if (id.includes("leaflet") && !id.includes("react-leaflet")) return "leaflet-vendor";
-          if (id.includes("react-leaflet") || id.includes("@react-leaflet")) return "react-vendor";
+          if (id.includes("react-leaflet") || id.includes("@react-leaflet") || id.includes("@radix-ui")) return "react-vendor";
           if (id.includes("@supabase") || id.includes("@tanstack/react-query") || id.includes("@tanstack/query-core")) {
             return "supabase-vendor";
           }
