@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Search, Bell, User, Globe, MapPin } from "lucide-react";
+import { Search, Bell, User, Globe, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const WebHeader = () => {
@@ -14,10 +14,10 @@ export const WebHeader = () => {
     <header className="sticky top-0 z-40 bg-gradient-hero text-primary-foreground shadow-elevated">
       <div className="container flex items-center justify-between gap-6 py-3">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white">
-            <MapPin className="h-5 w-5 text-primary" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
+            <Plane className="h-5 w-5 text-primary" />
           </div>
-          <span className="text-xl font-extrabold tracking-tight">traverla</span>
+          <span className="text-xl font-extrabold tracking-tight">PYU-GO</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">

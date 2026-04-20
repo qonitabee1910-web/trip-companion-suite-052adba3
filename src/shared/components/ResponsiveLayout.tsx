@@ -17,7 +17,7 @@ interface ResponsiveLayoutProps {
 
 export const ResponsiveLayout = ({
   children,
-  mobileTitle = "Traverla",
+  mobileTitle = "PYU-GO",
   mobileSubtitle,
   mobileBack,
   mobileHeaderVariant,

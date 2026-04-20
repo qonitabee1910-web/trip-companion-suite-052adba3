@@ -15,11 +15,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 28% 17%;
 
-    /* Traveloka blue #0194F3 */
-    --primary: 202 99% 48%;
+    /* PYU-GO sky blue #38BDF8 */
+    --primary: 202 89% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 202 99% 42%;
-    --primary-soft: 202 99% 95%;
+    --primary-hover: 202 89% 52%;
+    --primary-soft: 202 100% 95%;
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 215 28% 17%;
@@ -33,8 +33,8 @@
     --accent-soft: 16 100% 95%;
 
     /* Module colors */
-    --hotel: 202 99% 48%;
-    --hotel-soft: 202 99% 95%;
+    --hotel: 202 89% 60%;
+    --hotel-soft: 202 100% 95%;
     --shuttle: 152 60% 42%;
     --shuttle-soft: 152 60% 94%;
     --ride: 16 100% 56%;
@@ -47,23 +47,23 @@
 
     --border: 214 25% 90%;
     --input: 214 25% 90%;
-    --ring: 202 99% 48%;
+    --ring: 202 89% 60%;
 
     --radius: 0.625rem;
 
     --shadow-card: 0 2px 8px -2px hsl(215 28% 17% / 0.08);
-    --shadow-elevated: 0 8px 24px -8px hsl(215 28% 17% / 0.15);
-    --gradient-hero: linear-gradient(135deg, hsl(202 99% 48%), hsl(202 99% 38%));
+    --shadow-elevated: 0 8px 24px -8px hsl(202 89% 40% / 0.18);
+    --gradient-hero: linear-gradient(135deg, hsl(199 95% 74%), hsl(202 89% 50%));
     --gradient-promo: linear-gradient(135deg, hsl(16 100% 56%), hsl(28 100% 56%));
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 215 28% 17%;
-    --sidebar-primary: 202 99% 48%;
+    --sidebar-primary: 202 89% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 40% 96%;
     --sidebar-accent-foreground: 215 28% 17%;
     --sidebar-border: 214 25% 90%;
-    --sidebar-ring: 202 99% 48%;
+    --sidebar-ring: 202 89% 60%;
   }
 
   .dark {
@@ -73,7 +73,7 @@
     --card-foreground: 210 40% 98%;
     --popover: 215 28% 12%;
     --popover-foreground: 210 40% 98%;
-    --primary: 202 99% 55%;
+    --primary: 202 89% 65%;
     --primary-foreground: 215 28% 9%;
     --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 98%;
@@ -83,7 +83,7 @@
     --accent-foreground: 0 0% 100%;
     --border: 215 28% 20%;
     --input: 215 28% 20%;
-    --ring: 202 99% 55%;
+    --ring: 202 89% 65%;
   }
 }
 
