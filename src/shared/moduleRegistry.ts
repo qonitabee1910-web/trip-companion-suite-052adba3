@@ -41,8 +41,7 @@ function applyGuard<T extends ModuleRoute>(route: T, opts?: { defaultRole?: "adm
   if (!needsAuth) return route;
   const guarded: ReactNode = createElement(
     RequireAuth,
-    { role, requireVerified: route.requireVerified },
-    route.element,
+    { role, requireVerified: route.requireVerified, children: route.element },
   );
   return { ...route, element: guarded };
 }
