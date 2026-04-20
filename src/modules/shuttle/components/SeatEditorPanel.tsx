@@ -245,6 +245,37 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     toast.success(`Simpanan ${LAYOUT_LABELS[layoutKey]} dihapus, kembali ke default`);
   };
 
+  const toggleCopyTarget = (key: LayoutKey) => {
+    setCopyTargets((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
+
+  const handleCopyToTargets = async () => {
+    if (copying || copyTargets.length === 0) return;
+    if (authStatus !== "admin") {
+      toast.error("Hanya admin yang bisa menyalin layout");
+      return;
+    }
+    setCopying(true);
+    try {
+      const result = await copyLayoutToTargets(config, copyTargets, copyIncludeImage);
+      if (result.failed.length === 0) {
+        toast.success(`Berhasil disalin ke ${result.ok} kombinasi`);
+      } else if (result.ok === 0) {
+        toast.error(`Gagal menyalin (${result.failed[0].message})`);
+      } else {
+        toast.warning(
+          `Berhasil ${result.ok}, gagal ${result.failed.length} (${result.failed[0].message})`,
+        );
+      }
+      setCopyOpen(false);
+      setCopyTargets([]);
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const updateSeat = (num: number, x: number, y: number) => {
     setConfig((c) => ({
       ...c,
