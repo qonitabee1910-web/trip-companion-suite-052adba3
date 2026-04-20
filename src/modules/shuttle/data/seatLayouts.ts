@@ -239,29 +239,52 @@ function getPresetByKey(key: VehicleKey): SeatLayoutConfig {
   return LAYOUT_PRESETS[normalizeKey(key)];
 }
 
-export function saveLayoutToStorage(
+export interface SaveLayoutResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
+export async function saveLayoutToStorage(
   key: VehicleKey,
   config: SeatLayoutConfig,
   includeImage: boolean,
-): boolean {
+): Promise<SaveLayoutResult> {
+  const layoutKey = normalizeKey(key);
+  const payload: Partial<SeatLayoutConfig> = {
+    aspect: config.aspect,
+    driverSeat: config.driverSeat,
+    seats: config.seats,
+    seatSize: config.seatSize,
+  };
+  if (includeImage) payload.image = config.image;
+
+  // Snapshot for rollback
+  const previous = cloudCache.seatLayouts[layoutKey];
+  const previousTs = cloudCache.seatLayoutTimestamps[layoutKey];
+
+  // Optimistic local cache update
+  cloudCache.seatLayouts = { ...cloudCache.seatLayouts, [layoutKey]: payload };
+  cloudCache.seatLayoutTimestamps = {
+    ...cloudCache.seatLayoutTimestamps,
+    [layoutKey]: new Date().toISOString(),
+  };
+
   try {
-    const payload: Partial<SeatLayoutConfig> = {
-      aspect: config.aspect,
-      driverSeat: config.driverSeat,
-      seats: config.seats,
-      seatSize: config.seatSize,
+    await persistSeatLayout(layoutKey, payload);
+    return { ok: true };
+  } catch (err: any) {
+    // Rollback cache
+    const nextLayouts = { ...cloudCache.seatLayouts };
+    const nextTs = { ...cloudCache.seatLayoutTimestamps };
+    if (previous) nextLayouts[layoutKey] = previous; else delete nextLayouts[layoutKey];
+    if (previousTs) nextTs[layoutKey] = previousTs; else delete nextTs[layoutKey];
+    cloudCache.seatLayouts = nextLayouts;
+    cloudCache.seatLayoutTimestamps = nextTs;
+    console.error("[seatLayouts] persist failed:", err);
+    return {
+      ok: false,
+      error: { code: err?.code, message: err?.message || "Gagal menyimpan ke cloud" },
     };
-    if (includeImage) payload.image = config.image;
-    const layoutKey = normalizeKey(key);
-    // Optimistic local cache update so subsequent sync reads see it instantly
-    cloudCache.seatLayouts = { ...cloudCache.seatLayouts, [layoutKey]: payload };
-    void persistSeatLayout(layoutKey, payload).catch((err) => {
-      console.error("[seatLayouts] persist failed:", err);
-    });
-    return true;
-  } catch (err) {
-    console.error("[seatLayouts] saveLayoutToStorage failed:", err);
-    return false;
   }
 }
 
