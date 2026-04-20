@@ -163,9 +163,11 @@ export function getDestinationStored(): Destination {
 export async function saveDestination(d: Destination): Promise<SaveResult> {
   const previous = cloudCache.destination;
   cloudCache.destination = d;
+  notifyStore();
   const res = await persistDestination(d);
   if (!res.ok) {
     cloudCache.destination = previous;
+    notifyStore();
   }
   return res;
 }
@@ -175,9 +177,11 @@ export function getContentStored(): ShuttleContent {
 export async function saveContent(c: ShuttleContent): Promise<SaveResult> {
   const previous = cloudCache.content;
   cloudCache.content = c;
+  notifyStore();
   const res = await persistContent(c);
   if (!res.ok) {
     cloudCache.content = previous;
+    notifyStore();
   }
   return res;
 }
