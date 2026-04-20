@@ -77,6 +77,10 @@ const listeners = new Set<() => void>();
 function notify() {
   listeners.forEach((l) => l());
 }
+/** Public notify for callers that mutate `cloudCache` directly (e.g. repository rollback). */
+export function notifyStore() {
+  notify();
+}
 export function subscribeStore(fn: () => void) {
   listeners.add(fn);
   return () => listeners.delete(fn);
