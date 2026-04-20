@@ -524,12 +524,9 @@ export async function persistRayons(rayons: Rayon[]): Promise<SaveResult> {
   return { ok: true };
 }
 
-export interface DepartTimesSaveResult {
-  ok: boolean;
-  error?: { code?: string; message: string };
-}
+export type DepartTimesSaveResult = SaveResult;
 
-export async function persistDepartTimes(times: string[]): Promise<DepartTimesSaveResult> {
+export async function persistDepartTimes(times: string[]): Promise<SaveResult> {
   // Strategy: incremental sync — insert new times, update sort_order on existing,
   // delete times no longer in list. INSERT acts as the RLS probe (returns 42501
   // for non-admin), so we INSERT first when there are new entries.
