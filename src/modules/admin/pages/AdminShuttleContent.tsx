@@ -32,11 +32,37 @@ const AdminShuttleContent = () => {
   const { toast } = useToast();
   const [dest, setDest] = useState<Destination>(getDestinationStored());
   const [content, setContent] = useState<ShuttleContent>(getContentStored());
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    saveDestination(dest);
-    saveContent(content);
-    toast({ title: "Konten disimpan", description: "Tampilan user shuttle diperbarui." });
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    const [destRes, contentRes] = await Promise.all([
+      saveDestination(dest),
+      saveContent(content),
+    ]);
+    setSaving(false);
+    if (!destRes.ok || !contentRes.ok) {
+      const err = !destRes.ok ? destRes.error : contentRes.error;
+      if (err?.code === "42501") {
+        toast({
+          title: "Akses ditolak",
+          description: "Login admin diperlukan untuk mengubah konten.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Gagal menyimpan konten",
+          description: err?.message ?? "Terjadi kesalahan.",
+          variant: "destructive",
+        });
+      }
+      // Re-sync from cache (rolled back values)
+      setDest(getDestinationStored());
+      setContent(getContentStored());
+      return;
+    }
+    toast({ title: "Konten disimpan", description: "Tampilan user shuttle diperbarui di cloud." });
   };
 
   const handleReset = () => {
