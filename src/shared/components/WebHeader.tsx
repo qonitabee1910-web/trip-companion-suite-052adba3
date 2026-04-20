@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Search, Bell, User, Globe, MapPin } from "lucide-react";
+import { Search, Bell, User, Globe, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const WebHeader = () => {
