@@ -496,15 +496,30 @@ export async function persistRayons(rayons: Rayon[]): Promise<void> {
   notify();
 }
 
-export async function persistDepartTimes(times: string[]): Promise<void> {
-  await supabase.from("depart_times").delete().not("id", "is", null);
+export interface DepartTimesSaveResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
+export async function persistDepartTimes(times: string[]): Promise<DepartTimesSaveResult> {
+  // Delete-all + insert-all. If DELETE is blocked by RLS, .delete() returns an error.
+  const delRes = await supabase.from("depart_times").delete().not("id", "is", null);
+  if (delRes.error) {
+    console.error("[cloudStore] persistDepartTimes delete failed:", delRes.error);
+    return { ok: false, error: { code: delRes.error.code, message: delRes.error.message } };
+  }
   if (times.length > 0) {
-    await supabase
+    const insRes = await supabase
       .from("depart_times")
       .insert(times.map((t, i) => ({ time: t, sort_order: i })));
+    if (insRes.error) {
+      console.error("[cloudStore] persistDepartTimes insert failed:", insRes.error);
+      return { ok: false, error: { code: insRes.error.code, message: insRes.error.message } };
+    }
   }
   cache.departTimes = times;
   notify();
+  return { ok: true };
 }
 
 export async function persistServices(services: ServiceConfig[]): Promise<void> {
