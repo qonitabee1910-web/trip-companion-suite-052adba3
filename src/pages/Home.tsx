@@ -7,12 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Search, Bell, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-const promos = [
-  { id: 1, title: "Diskon 50% Hotel", subtitle: "Booking sekarang sampai 30 April", tag: "HOT DEAL" },
-  { id: 2, title: "Cashback Shuttle 25K", subtitle: "Min. transaksi 100K", tag: "PROMO" },
-  { id: 3, title: "Ride Gratis Pertama", subtitle: "Khusus pengguna baru", tag: "BARU" },
-];
+import { DEFAULT_HERO_BANNERS } from "@/shared/data/heroBanners";
 
 const recommendations = [
   { id: 1, name: "Bali Sunset Resort", location: "Seminyak, Bali", price: 850000, rating: 4.8, img: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600" },
@@ -27,14 +22,14 @@ const Home = () => {
 
   return (
     <ResponsiveLayout hideMobileHeader hideWebHeader>
-      {/* Unified PYU-GO hero banner */}
+      {/* Unified PYU-GO hero banner with image carousel */}
       <HeadBanner
         variant="hero"
         title={isMobile ? "Hai, mau ke mana hari ini?" : "Jalan-jalan, antar-jemput, sampai pesan kendaraan — semua dari PYU-GO."}
         subtitle={isMobile ? undefined : "Cari penginapan, tiket shuttle antar kota, atau pesan kendaraan instan — dalam satu aplikasi."}
-        rightSlot={isMobile ? <Bell className="h-5 w-5" /> : undefined}
-      >
-      </HeadBanner>
+        rightSlot={isMobile ? <Bell className="h-5 w-5 drop-shadow" /> : undefined}
+        banners={DEFAULT_HERO_BANNERS}
+      />
 
       {/* Mobile search bar (separate band so banner stays clean) */}
       {isMobile && (
@@ -62,24 +57,8 @@ const Home = () => {
         </Card>
       </section>
 
-      {/* Promo */}
-      <section className={isMobile ? "px-3 mt-6" : "container mt-10"}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg md:text-xl font-bold">Promo Spesial</h2>
-          <button className="text-sm font-medium text-primary">Lihat semua</button>
-        </div>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-3 px-3 md:mx-0 md:px-0 md:grid md:grid-cols-3">
-          {promos.map((p) => (
-            <Card key={p.id} className="min-w-[280px] md:min-w-0 bg-gradient-promo text-white border-0 shadow-card">
-              <div className="p-5">
-                <span className="inline-block bg-white/25 backdrop-blur text-xs font-bold px-2 py-1 rounded">{p.tag}</span>
-                <h3 className="mt-3 text-lg font-bold leading-tight">{p.title}</h3>
-                <p className="mt-1 text-sm text-white/90">{p.subtitle}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
+      {/* Promo carousel sudah di hero — section ini dihapus untuk hindari duplikasi */}
+
 
       {/* Recommendations */}
       <section className={isMobile ? "px-3 mt-6 pb-8" : "container mt-10 pb-12"}>
