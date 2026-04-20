@@ -246,16 +246,18 @@ const AdminRayons = () => {
     setEditing({ ...editing, data: { ...editing.data, pickupPoints: pts } });
   };
 
-  const addTime = () => {
+  const addTime = async () => {
     if (!/^\d{2}:\d{2}$/.test(newTime)) {
       toast({ title: "Format jam salah", description: "Gunakan HH:MM (cth 06:00).", variant: "destructive" });
       return;
     }
-    persistTimes([...times, newTime]);
-    setNewTime("");
+    const ok = await persistTimes([...times, newTime]);
+    if (ok) setNewTime("");
   };
 
-  const removeTime = (t: string) => persistTimes(times.filter((x) => x !== t));
+  const removeTime = (t: string) => {
+    void persistTimes(times.filter((x) => x !== t));
+  };
 
   const handleReset = () => {
     resetSection("rayons");
