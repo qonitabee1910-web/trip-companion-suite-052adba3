@@ -20,6 +20,7 @@ import { StepperHeader } from "@/shared/components/StepperHeader";
 const ShuttleBooking = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  useCloudSnapshot();
 
   const rayon = getRayon(params.get("rayon") || "A");
   const DESTINATION = getDestination();
