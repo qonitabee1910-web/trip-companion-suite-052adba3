@@ -377,6 +377,7 @@ ${seatsStr}
   const selected = config.seats.find((s) => s.num === selectedNum);
 
   return (
+    <>
     <div className="space-y-4">
       {authStatus !== "loading" && authStatus !== "admin" && (
         <Alert variant="destructive">
