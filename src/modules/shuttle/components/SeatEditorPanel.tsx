@@ -331,7 +331,22 @@ ${seatsStr}
   const selected = config.seats.find((s) => s.num === selectedNum);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="space-y-4">
+      {authStatus !== "loading" && authStatus !== "admin" && (
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>
+            {authStatus === "no-auth" ? "Belum login" : "Bukan admin"}
+          </AlertTitle>
+          <AlertDescription>
+            {authStatus === "no-auth"
+              ? "Login diperlukan untuk menyimpan denah ke cloud. "
+              : "Akun Anda tidak punya role admin. "}
+            <Link to="/admin/login" className="font-semibold underline">Buka halaman admin login</Link>.
+          </AlertDescription>
+        </Alert>
+      )}
+      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
       {/* Control panel */}
       <div className="space-y-4">
         <Card className="space-y-3 p-4">
