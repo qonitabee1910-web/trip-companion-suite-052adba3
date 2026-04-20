@@ -74,13 +74,20 @@ export default defineConfig(({ mode }) => ({
             id.includes("react-resizable-panels") ||
             id.includes("qrcode.react") ||
             id.includes("@yudiel/react-qr-scanner") ||
-            id.includes("input-otp")
+            id.includes("input-otp") ||
+            id.includes("react/jsx-runtime") ||
+            id.includes("use-callback-ref") ||
+            id.includes("use-sidecar") ||
+            id.includes("classnames") ||
+            id.includes("zustand")
           )
             return "react-vendor";
           if (id.includes("@supabase")) return "supabase-vendor";
           if (id.includes("lucide-react")) return "icons-vendor";
           if (id.includes("html-to-image") || id.includes("jspdf")) return "export-vendor";
-          return "vendor";
+          if (id.includes("leaflet")) return "leaflet-vendor";
+          // Catch-all: put remaining packages in react-vendor to ensure React context availability
+          return "react-vendor";
         },
       },
     },
