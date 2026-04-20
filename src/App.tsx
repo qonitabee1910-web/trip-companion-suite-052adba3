@@ -73,6 +73,7 @@ const App = () => (
           <Route path="/driver/shuttle" element={<DriverShuttleTrip />} />
           <Route path="/driver/shuttle/:id" element={<DriverShuttleTrip />} />
 
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/shuttle/rayons" element={<AdminRayons />} />
           <Route path="/admin/shuttle/services" element={<AdminServices />} />
