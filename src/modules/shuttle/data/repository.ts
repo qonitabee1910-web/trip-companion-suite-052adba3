@@ -26,13 +26,24 @@ import {
 } from "./services";
 import type { ShuttleBooking, BookingStatus } from "../types/booking";
 
+// ---------- Generic Save Result ----------
+export interface SaveResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
 // ---------- Rayons ----------
 export function getRayons(): Rayon[] {
   return cloudCache.rayons;
 }
-export function saveRayons(rayons: Rayon[]) {
+export async function saveRayons(rayons: Rayon[]): Promise<SaveResult> {
+  const previous = cloudCache.rayons;
   cloudCache.rayons = rayons;
-  void persistRayons(rayons);
+  const res = await persistRayons(rayons);
+  if (!res.ok) {
+    cloudCache.rayons = previous;
+  }
+  return res;
 }
 export function getRayonById(id: string): Rayon | undefined {
   return cloudCache.rayons.find((r) => r.id.toUpperCase() === id.toUpperCase());
@@ -43,12 +54,9 @@ export function getDepartTimes(): string[] {
   return cloudCache.departTimes;
 }
 
-export interface SaveDepartTimesResult {
-  ok: boolean;
-  error?: { code?: string; message: string };
-}
+export type SaveDepartTimesResult = SaveResult;
 
-export async function saveDepartTimes(times: string[]): Promise<SaveDepartTimesResult> {
+export async function saveDepartTimes(times: string[]): Promise<SaveResult> {
   const previous = cloudCache.departTimes;
   const sorted = [...new Set(times)].sort();
   // Optimistic update
@@ -65,9 +73,14 @@ export async function saveDepartTimes(times: string[]): Promise<SaveDepartTimesR
 export function getServicesAll(): ServiceConfig[] {
   return cloudCache.services;
 }
-export function saveServices(services: ServiceConfig[]) {
+export async function saveServices(services: ServiceConfig[]): Promise<SaveResult> {
+  const previous = cloudCache.services;
   cloudCache.services = services;
-  void persistServices(services);
+  const res = await persistServices(services);
+  if (!res.ok) {
+    cloudCache.services = previous;
+  }
+  return res;
 }
 export function getServiceByTier(tier: string): ServiceConfig | undefined {
   return cloudCache.services.find((s) => s.tier === tier);
@@ -77,9 +90,14 @@ export function getServiceByTier(tier: string): ServiceConfig | undefined {
 export function getVehicleTypesAll(): VehicleType[] {
   return cloudCache.vehicles;
 }
-export function saveVehicleTypes(vehicles: VehicleType[]) {
+export async function saveVehicleTypes(vehicles: VehicleType[]): Promise<SaveResult> {
+  const previous = cloudCache.vehicles;
   cloudCache.vehicles = vehicles;
-  void persistVehicles(vehicles);
+  const res = await persistVehicles(vehicles);
+  if (!res.ok) {
+    cloudCache.vehicles = previous;
+  }
+  return res;
 }
 export function getVehicleTypeById(id: string): VehicleType | undefined {
   return cloudCache.vehicles.find((v) => v.id === id);
