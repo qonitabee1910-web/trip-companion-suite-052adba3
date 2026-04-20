@@ -454,8 +454,9 @@ ${seatsStr}
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={addSeat} size="sm" variant="outline"><Plus className="h-4 w-4" />Kursi</Button>
             <Button onClick={resetToPreset} size="sm" variant="outline"><RotateCcw className="h-4 w-4" />Reset</Button>
-            <Button onClick={saveLayout} size="sm" className="col-span-2">
-              <Save className="h-4 w-4" />Simpan ke tampilan user
+            <Button onClick={saveLayout} size="sm" className="col-span-2" disabled={saving || authStatus !== "admin"}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? "Menyimpan…" : "Simpan ke tampilan user"}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
