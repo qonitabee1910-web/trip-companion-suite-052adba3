@@ -1,25 +1,33 @@
 /**
- * CloudGate — blocks rendering until cloudStore is hydrated from Supabase.
- * Subscribes so any cache change re-renders consumers via useSyncExternalStore.
+ * CloudGate — blocks rendering until all module hydrate hooks complete.
+ * Subscribes to the shared store so cache changes trigger re-renders.
  */
-import { useSyncExternalStore, type ReactNode } from "react";
-import { ensureHydrated, isHydrated, subscribeStore } from "@/modules/shuttle/data/cloudStore";
+import { useEffect, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
-
-function subscribe(cb: () => void) {
-  const off = subscribeStore(cb);
-  return () => off();
-}
+import { hydrateAllModules } from "@/shared/moduleRegistry";
+import { subscribeStore, isHydrated } from "@/modules/shuttle/data/cloudStore";
 
 export function useCloudHydrated(): boolean {
-  return useSyncExternalStore(subscribe, isHydrated, isHydrated);
+  const [hydrated, setHydrated] = useState<boolean>(isHydrated());
+  useEffect(() => {
+    let cancelled = false;
+    if (!hydrated) {
+      hydrateAllModules().then(() => {
+        if (!cancelled) setHydrated(true);
+      });
+    }
+    const off = subscribeStore(() => {
+      if (!cancelled && isHydrated()) setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [hydrated]);
+  return hydrated;
 }
 
 export function CloudGate({ children }: { children: ReactNode }) {
-  // kick off hydration on first mount
-  if (typeof window !== "undefined") {
-    void ensureHydrated();
-  }
   const hydrated = useCloudHydrated();
   if (!hydrated) {
     return (
