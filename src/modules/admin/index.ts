@@ -3,7 +3,7 @@
  * Domain-specific admin routes (shuttle, etc.) live inside their own modules
  * and are aggregated by AdminSidebar via the registry.
  */
-import { LayoutDashboard, Shield, CreditCard } from "lucide-react";
+import { LayoutDashboard, Shield, CreditCard, ShieldCheck } from "lucide-react";
 import type { AppModule } from "@/shared/moduleSystem";
 import { lazyEl } from "@/shared/lazyEl";
 
@@ -26,6 +26,11 @@ const adminModule: AppModule = {
       path: "/admin/payments",
       element: lazyEl(() => import("./pages/AdminPayments")),
       sidebar: { label: "Pembayaran", icon: CreditCard, group: "Setup Layanan", order: 50 },
+    },
+    {
+      path: "/admin/drivers/verification",
+      element: lazyEl(() => import("./pages/AdminDriverVerification")),
+      sidebar: { label: "Verifikasi Driver", icon: ShieldCheck, group: "Operasional", order: 30 },
     },
   ],
 };

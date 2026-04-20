@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { Bus, LogOut, Star, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/shared/auth/useAuth";
+import { NotificationBell } from "@/shared/components/NotificationBell";
 import type { DriverRow, Ride } from "../data/driver";
 import { formatRupiah } from "../data/driver";
 
@@ -186,9 +187,12 @@ const DriverHome = () => {
             </div>
           </div>
         </button>
-        <Button variant="ghost" size="icon" onClick={logout} aria-label="Logout">
-          <LogOut className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <Button variant="ghost" size="icon" onClick={logout} aria-label="Logout">
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* map */}
