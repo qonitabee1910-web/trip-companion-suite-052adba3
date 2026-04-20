@@ -7,12 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Search, Bell, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-const promos = [
-  { id: 1, title: "Diskon 50% Hotel", subtitle: "Booking sekarang sampai 30 April", tag: "HOT DEAL" },
-  { id: 2, title: "Cashback Shuttle 25K", subtitle: "Min. transaksi 100K", tag: "PROMO" },
-  { id: 3, title: "Ride Gratis Pertama", subtitle: "Khusus pengguna baru", tag: "BARU" },
-];
+import { DEFAULT_HERO_BANNERS } from "@/shared/data/heroBanners";
 
 const recommendations = [
   { id: 1, name: "Bali Sunset Resort", location: "Seminyak, Bali", price: 850000, rating: 4.8, img: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600" },
