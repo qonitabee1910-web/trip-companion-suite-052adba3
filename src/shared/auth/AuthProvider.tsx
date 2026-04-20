@@ -14,11 +14,14 @@ export interface ProfileRow {
   bio?: string | null;
 }
 
+export type DriverVerificationStatus = "pending" | "verified" | "rejected" | null;
+
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
   profile: ProfileRow | null;
   roles: AppRole[];
+  driverVerificationStatus: DriverVerificationStatus;
   loading: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -31,6 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [driverVerificationStatus, setDriverVerificationStatus] =
+    useState<DriverVerificationStatus>(null);
   const [loading, setLoading] = useState(true);
 
   const loadProfileAndRoles = useCallback(async (uid: string) => {
@@ -39,7 +44,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
     setProfile((profRes.data as ProfileRow) ?? null);
-    setRoles(((rolesRes.data ?? []) as { role: AppRole }[]).map((r) => r.role));
+    const userRoles = ((rolesRes.data ?? []) as { role: AppRole }[]).map((r) => r.role);
+    setRoles(userRoles);
+
+    if (userRoles.includes("driver")) {
+      const { data: drv } = await supabase
+        .from("drivers")
+        .select("verification_status")
+        .eq("id", uid)
+        .maybeSingle();
+      setDriverVerificationStatus((drv?.verification_status as DriverVerificationStatus) ?? "pending");
+    } else {
+      setDriverVerificationStatus(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -53,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null);
         setRoles([]);
+        setDriverVerificationStatus(null);
       }
     });
 
@@ -80,10 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setRoles([]);
+    setDriverVerificationStatus(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, roles, loading, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, roles, driverVerificationStatus, loading, refreshProfile, signOut }}>
       {children}
     </AuthContext.Provider>
   );

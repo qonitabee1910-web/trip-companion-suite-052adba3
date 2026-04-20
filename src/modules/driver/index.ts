@@ -15,11 +15,11 @@ const driverModule: AppModule = {
   homeEntry: { order: 40 },
   routes: [
     { path: "/driver/login", element: lazyEl(() => import("./pages/DriverLogin")) },
-    { path: "/driver", element: lazyEl(() => import("./pages/DriverHome")) },
-    { path: "/driver/profile", element: lazyEl(() => import("./pages/DriverProfile")) },
-    { path: "/driver/ride/:id", element: lazyEl(() => import("./pages/DriverActiveRide")) },
-    { path: "/driver/shuttle", element: lazyEl(() => import("./pages/DriverShuttleTrip")) },
-    { path: "/driver/shuttle/:id", element: lazyEl(() => import("./pages/DriverShuttleTrip")) },
+    { path: "/driver", element: lazyEl(() => import("./pages/DriverHome")), requireRole: "driver", requireVerified: true },
+    { path: "/driver/profile", element: lazyEl(() => import("./pages/DriverProfile")), requireRole: "driver" },
+    { path: "/driver/ride/:id", element: lazyEl(() => import("./pages/DriverActiveRide")), requireRole: "driver", requireVerified: true },
+    { path: "/driver/shuttle", element: lazyEl(() => import("./pages/DriverShuttleTrip")), requireRole: "driver", requireVerified: true },
+    { path: "/driver/shuttle/:id", element: lazyEl(() => import("./pages/DriverShuttleTrip")), requireRole: "driver", requireVerified: true },
   ],
 };
 

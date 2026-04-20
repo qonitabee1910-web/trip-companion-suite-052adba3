@@ -24,8 +24,8 @@ const shuttleModule: AppModule = {
     { path: "/shuttle/seat-editor", element: lazyEl(() => import("./pages/SeatLayoutEditor")) },
     { path: "/shuttle/:id/book", element: lazyEl(() => import("./pages/ShuttleBooking")) },
     { path: "/shuttle/login", element: lazyEl(() => import("./pages/CustomerLogin")) },
-    { path: "/shuttle/my-bookings", element: lazyEl(() => import("./pages/MyBookings")) },
-    { path: "/shuttle/profile", element: lazyEl(() => import("./pages/CustomerProfile")) },
+    { path: "/shuttle/my-bookings", element: lazyEl(() => import("./pages/MyBookings")), requireAuth: true },
+    { path: "/shuttle/profile", element: lazyEl(() => import("./pages/CustomerProfile")), requireAuth: true },
   ],
   adminRoutes: [
     {
