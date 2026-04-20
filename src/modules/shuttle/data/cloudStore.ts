@@ -45,6 +45,8 @@ interface Cache {
   seatLayouts: Record<string, Partial<SeatLayoutConfig>>;
   /** Map of LayoutKey -> ISO timestamp of last update from cloud. */
   seatLayoutTimestamps: Record<string, string>;
+  /** Payment gateway settings (provider, mode, methods, credentials). */
+  paymentSettings?: import("./payment").PaymentSettings;
   hydrated: boolean;
 }
 
@@ -193,8 +195,13 @@ async function hydrate() {
     if (settingsRes.data) {
       const dest = settingsRes.data.find((s) => s.key === "destination");
       const cnt = settingsRes.data.find((s) => s.key === "content");
+      const pay = settingsRes.data.find((s) => s.key === "payment_gateway");
       if (dest) cache.destination = { ...DEFAULT_DESTINATION, ...(dest.value as object) };
       if (cnt) cache.content = { ...DEFAULT_CONTENT, ...(cnt.value as object) };
+      if (pay) {
+        const { DEFAULT_PAYMENT_SETTINGS } = await import("./payment");
+        cache.paymentSettings = { ...DEFAULT_PAYMENT_SETTINGS, ...(pay.value as object) };
+      }
     }
 
     if (bookingsRes.data) {
@@ -278,6 +285,9 @@ function rowToBooking(row: any): ShuttleBooking {
     customerPhone: row.customer_phone,
     status: row.status as BookingStatus,
     createdAt: row.created_at,
+    paymentMethod: row.payment_method ?? undefined,
+    paymentStatus: row.payment_status ?? undefined,
+    paymentRef: row.payment_ref ?? undefined,
   };
 }
 
@@ -435,8 +445,13 @@ function setupRealtime() {
     if (data) {
       const dest = data.find((s) => s.key === "destination");
       const cnt = data.find((s) => s.key === "content");
+      const pay = data.find((s) => s.key === "payment_gateway");
       if (dest) cache.destination = { ...DEFAULT_DESTINATION, ...(dest.value as object) };
       if (cnt) cache.content = { ...DEFAULT_CONTENT, ...(cnt.value as object) };
+      if (pay) {
+        const { DEFAULT_PAYMENT_SETTINGS } = await import("./payment");
+        cache.paymentSettings = { ...DEFAULT_PAYMENT_SETTINGS, ...(pay.value as object) };
+      }
       notify();
     }
   };
@@ -731,7 +746,10 @@ export async function createBooking(
       customer_name: b.customerName,
       customer_phone: b.customerPhone,
       status: b.status ?? "confirmed",
-    })
+      payment_method: b.paymentMethod,
+      payment_status: b.paymentStatus,
+      payment_ref: b.paymentRef,
+    } as any)
     .select()
     .single();
   if (error) throw error;
