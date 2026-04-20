@@ -668,6 +668,7 @@ ${seatsStr}
         </Card>
       </div>
     </div>
+    </div>
 
     <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
       <DialogContent className="max-w-md">
