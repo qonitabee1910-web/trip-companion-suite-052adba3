@@ -100,10 +100,29 @@ const AdminRayons = () => {
 
   const isAdmin = authStatus === "admin";
 
-  const persistRayons = (next: Rayon[]) => {
+  const persistRayons = async (next: Rayon[]): Promise<boolean> => {
+    const previous = rayons;
     setRayons(next);
-    saveRayons(next);
-    toast({ title: "Rayon disimpan", description: `${next.length} rayon aktif.` });
+    const res = await saveRayons(next);
+    if (!res.ok) {
+      setRayons(previous);
+      if (res.error?.code === "42501") {
+        toast({
+          title: "Akses ditolak",
+          description: "Login admin diperlukan untuk mengubah rayon.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Gagal menyimpan rayon",
+          description: res.error?.message ?? "Terjadi kesalahan.",
+          variant: "destructive",
+        });
+      }
+      return false;
+    }
+    toast({ title: "Rayon disimpan", description: `${next.length} rayon tersimpan ke cloud.` });
+    return true;
   };
 
   const persistTimes = async (next: string[]): Promise<boolean> => {
