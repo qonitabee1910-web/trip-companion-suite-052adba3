@@ -15,11 +15,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 28% 17%;
 
-    /* Traveloka blue #0194F3 */
-    --primary: 202 99% 48%;
+    /* PYU-GO sky blue #38BDF8 */
+    --primary: 202 89% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 202 99% 42%;
-    --primary-soft: 202 99% 95%;
+    --primary-hover: 202 89% 52%;
+    --primary-soft: 202 100% 95%;
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 215 28% 17%;
