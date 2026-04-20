@@ -31,9 +31,32 @@ const AdminServices = () => {
     setServices((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   };
 
-  const handleSave = () => {
-    saveServices(services);
-    toast({ title: "Service disimpan", description: "Perubahan langsung tampil di user flow." });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    const res = await saveServices(services);
+    setSaving(false);
+    if (!res.ok) {
+      if (res.error?.code === "42501") {
+        toast({
+          title: "Akses ditolak",
+          description: "Login admin diperlukan untuk menyimpan service.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Gagal menyimpan",
+          description: res.error?.message ?? "Terjadi kesalahan.",
+          variant: "destructive",
+        });
+      }
+      // Re-sync UI from cache after rollback
+      setServices(getServicesAll());
+      return;
+    }
+    toast({ title: "Service disimpan", description: "Perubahan tersimpan ke cloud." });
   };
 
   const handleReset = () => {
