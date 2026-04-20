@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Cloud, Loader2 } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Cloud, Loader2, CopyCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +32,14 @@ import { SeatEditorLivePreview } from "./SeatEditorLivePreview";
 import {
   LAYOUT_PRESETS,
   LAYOUT_LABELS,
+  LAYOUT_KEYS,
   saveLayoutToStorage,
   loadLayoutFromStorage,
   clearLayoutFromStorage,
   hasStoredLayout,
   buildLayoutKey,
   getLayoutUpdatedAt,
+  copyLayoutToTargets,
   DEFAULT_SEAT_SIZE,
   type SeatLayoutConfig,
   type SeatPosition,
@@ -56,6 +58,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Props {
   initialKey?: LayoutKey;
@@ -117,6 +128,10 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [authStatus, setAuthStatus] = useState<"loading" | "no-auth" | "no-admin" | "admin">("loading");
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyTargets, setCopyTargets] = useState<LayoutKey[]>([]);
+  const [copyIncludeImage, setCopyIncludeImage] = useState(true);
+  const [copying, setCopying] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Check admin role on mount
@@ -230,6 +245,37 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
     toast.success(`Simpanan ${LAYOUT_LABELS[layoutKey]} dihapus, kembali ke default`);
   };
 
+  const toggleCopyTarget = (key: LayoutKey) => {
+    setCopyTargets((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
+
+  const handleCopyToTargets = async () => {
+    if (copying || copyTargets.length === 0) return;
+    if (authStatus !== "admin") {
+      toast.error("Hanya admin yang bisa menyalin layout");
+      return;
+    }
+    setCopying(true);
+    try {
+      const result = await copyLayoutToTargets(config, copyTargets, copyIncludeImage);
+      if (result.failed.length === 0) {
+        toast.success(`Berhasil disalin ke ${result.ok} kombinasi`);
+      } else if (result.ok === 0) {
+        toast.error(`Gagal menyalin (${result.failed[0].message})`);
+      } else {
+        toast.warning(
+          `Berhasil ${result.ok}, gagal ${result.failed.length} (${result.failed[0].message})`,
+        );
+      }
+      setCopyOpen(false);
+      setCopyTargets([]);
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const updateSeat = (num: number, x: number, y: number) => {
     setConfig((c) => ({
       ...c,
@@ -331,6 +377,7 @@ ${seatsStr}
   const selected = config.seats.find((s) => s.num === selectedNum);
 
   return (
+    <>
     <div className="space-y-4">
       {authStatus !== "loading" && authStatus !== "admin" && (
         <Alert variant="destructive">
@@ -457,6 +504,15 @@ ${seatsStr}
             <Button onClick={saveLayout} size="sm" className="col-span-2" disabled={saving || authStatus !== "admin"}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? "Menyimpan…" : "Simpan ke tampilan user"}
+            </Button>
+            <Button
+              onClick={() => { setCopyTargets([]); setCopyOpen(true); }}
+              size="sm"
+              variant="outline"
+              className="col-span-2"
+              disabled={authStatus !== "admin"}
+            >
+              <CopyCheck className="h-4 w-4" />Salin layout ke kombinasi lain…
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -613,5 +669,59 @@ ${seatsStr}
       </div>
     </div>
     </div>
+
+    <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Salin layout ke kombinasi lain</DialogTitle>
+          <DialogDescription>
+            Pilih satu atau lebih kombinasi tujuan. Layout aktif <strong>{LAYOUT_LABELS[layoutKey]}</strong> akan ditimpa ke target.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto rounded-md border p-2">
+            {LAYOUT_KEYS.filter((k) => k !== layoutKey).map((k) => {
+              const checked = copyTargets.includes(k);
+              return (
+                <label
+                  key={k}
+                  className={`flex items-center gap-2 rounded-md border p-2 text-sm cursor-pointer ${
+                    checked ? "border-primary bg-primary/5" : ""
+                  }`}
+                >
+                  <Checkbox checked={checked} onCheckedChange={() => toggleCopyTarget(k)} />
+                  <span className="flex-1">{LAYOUT_LABELS[k]}</span>
+                  {hasStoredLayout(k) && (
+                    <Badge variant="outline" className="text-[10px]">tersimpan</Badge>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-2">
+            <div>
+              <Label htmlFor="copy-img" className="cursor-pointer">Sertakan gambar denah</Label>
+              <p className="text-[11px] text-muted-foreground">
+                {copyIncludeImage
+                  ? "Gambar source akan dipakai semua target."
+                  : "Gambar tiap target tetap, hanya posisi kursi & driver yang disalin."}
+              </p>
+            </div>
+            <Switch id="copy-img" checked={copyIncludeImage} onCheckedChange={setCopyIncludeImage} />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setCopyOpen(false)} disabled={copying}>Batal</Button>
+          <Button onClick={handleCopyToTargets} disabled={copying || copyTargets.length === 0}>
+            {copying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CopyCheck className="h-4 w-4" />}
+            Salin ke {copyTargets.length} kombinasi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
