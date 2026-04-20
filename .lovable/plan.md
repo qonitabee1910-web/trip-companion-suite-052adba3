@@ -1,195 +1,91 @@
 
 
-## Plan: Modul Auth Terpadu + Profile Page per Role
+## Plan: Restrict Route Access by Role
 
-### Arsitektur
+### Problem
+Sekarang banyak route sensitif yang tidak dilindungi atau hanya dilindungi via guard ad-hoc di dalam komponen (mis. `DriverHome` cek role manual via `useEffect`). Akibatnya:
+- `/admin/*` bisa diakses siapa saja → dapatkan dashboard kosong / error RLS
+- `/driver/profile`, `/driver/shuttle`, `/driver/ride/:id` tidak ada role gate
+- `/shuttle/profile`, `/shuttle/my-bookings` tidak ada auth gate
+- Guard manual di komponen = duplikasi + race condition (loading state tidak konsisten)
 
-```text
-src/shared/auth/                   ← shared auth core (NEW)
-  AuthProvider.tsx                 ← context: session, user, roles, ready
-  useAuth.ts                       ← hook: { user, roles, isCustomer, isDriver, isAdmin }
-  useRequireRole.ts                ← gate hook: redirect kalau role tidak match
-  RequireAuth.tsx                  ← komponen wrapper untuk protected routes
-  authApi.ts                       ← signUp/signIn/signOut/resetPassword/uploadAvatar
-  storageBuckets.ts                ← bucket constants
+### Solusi
+Gunakan komponen `RequireAuth` yang sudah ada (`src/shared/auth/RequireAuth.tsx`) di **lapisan registry**, supaya proteksi konsisten dan deklaratif lewat manifest tiap modul.
 
-src/modules/auth/                  ← modul auth terpadu (NEW)
-  pages/AuthPage.tsx               ← /auth — login/signup, pilih role saat signup
-  pages/ResetPasswordPage.tsx      ← /reset-password
-  pages/ForgotPasswordPage.tsx     ← /forgot-password (atau inline di /auth)
-  index.ts                         ← manifest
+### 1. Extend Module System
 
-src/modules/shuttle/pages/
-  CustomerProfile.tsx              ← /shuttle/profile (NEW)
-
-src/modules/driver/pages/
-  DriverProfile.tsx                ← /driver/profile (NEW)
+**Edit `src/shared/moduleSystem.ts`** — tambah field opsional `requireAuth` dan `requireRole` di tipe route:
+```ts
+export interface ModuleRoute {
+  path: string;
+  element: ReactNode;
+  requireAuth?: boolean;          // wajib login
+  requireRole?: AppRole;          // wajib role tertentu (implisit requireAuth)
+}
 ```
 
-### 1. Database Migration
+**Edit `src/shared/moduleRegistry.ts`** — di `getAllPublicRoutes()` & `getAllAdminRoutes()`, otomatis bungkus `element` dengan `<RequireAuth role={...}>` kalau `requireRole` di-set, atau `<RequireAuth>` saja kalau `requireAuth: true`. Admin routes default-nya `requireRole: "admin"` (tanpa perlu di-set per route).
 
-```sql
--- Tambah kolom profil ke profiles
-ALTER TABLE profiles 
-  ADD COLUMN IF NOT EXISTS email text,
-  ADD COLUMN IF NOT EXISTS address text,
-  ADD COLUMN IF NOT EXISTS bio text;
+### 2. Tag Routes per Modul
 
--- Tambah kolom dokumen ke drivers (untuk SIM/STNK + verifikasi)
-ALTER TABLE drivers
-  ADD COLUMN IF NOT EXISTS sim_url text,
-  ADD COLUMN IF NOT EXISTS stnk_url text,
-  ADD COLUMN IF NOT EXISTS sim_expiry date,
-  ADD COLUMN IF NOT EXISTS verification_status text DEFAULT 'pending',
-  ADD COLUMN IF NOT EXISTS verified_at timestamptz,
-  ADD COLUMN IF NOT EXISTS verified_by uuid;
-
--- Storage buckets
-INSERT INTO storage.buckets (id, name, public) VALUES
-  ('avatars', 'avatars', true),
-  ('driver-documents', 'driver-documents', false)
-ON CONFLICT DO NOTHING;
-
--- RLS avatars: public read, owner write
-CREATE POLICY "Avatars publicly viewable" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
-CREATE POLICY "Users upload own avatar" ON storage.objects FOR INSERT TO authenticated 
-  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-CREATE POLICY "Users update own avatar" ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-
--- RLS driver-documents: owner only + admin read
-CREATE POLICY "Drivers manage own docs" ON storage.objects FOR ALL TO authenticated
-  USING (bucket_id = 'driver-documents' AND (storage.foldername(name))[1] = auth.uid()::text);
-CREATE POLICY "Admin read driver docs" ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'driver-documents' AND has_role(auth.uid(), 'admin'));
+**`src/modules/driver/index.ts`** — semua route driver kecuali `/driver/login` dapat `requireRole: "driver"`:
+```
+/driver                  → requireRole: "driver"
+/driver/profile          → requireRole: "driver"
+/driver/ride/:id         → requireRole: "driver"
+/driver/shuttle(/:id)    → requireRole: "driver"
+/driver/login            → public
 ```
 
-Note: tidak buat tabel terpisah untuk roles — `user_roles` sudah ada. Trigger `handle_new_user` sudah auto-create profile.
-
-### 2. Shared Auth Core
-
-**`AuthProvider.tsx`** — context provider yang dipasang di App.tsx, expose:
-- `session`, `user`, `profile`, `roles[]`, `loading`
-- Listener `onAuthStateChange` (set up SEBELUM `getSession()` per best-practice)
-- Auto-refetch roles saat session berubah
-
-**`useAuth.ts`** — hook utama: `{ user, profile, roles, isCustomer, isDriver, isAdmin, signOut }`
-
-**`RequireAuth.tsx`** — wrapper component:
-```tsx
-<RequireAuth role="driver" redirectTo="/auth?role=driver">
-  <DriverHome />
-</RequireAuth>
+**`src/modules/shuttle/index.ts`** — gate route customer:
 ```
-Kalau belum login → redirect ke /auth dengan `from` state. Kalau login tapi role salah → redirect ke home + toast.
+/shuttle/profile         → requireAuth
+/shuttle/my-bookings     → requireAuth
+/shuttle/login           → public (redirect ke /auth)
+sisanya (browse/booking) → public
+```
 
-**`authApi.ts`** — fungsi-fungsi:
-- `signUpWithRole(email, password, fullName, role)` → signUp + insert ke user_roles + (kalau driver) insert ke drivers row
-- `signIn(email, password)`
-- `signOut()`
-- `requestPasswordReset(email)`
-- `updatePassword(newPassword)`
-- `uploadAvatar(file)` → upload ke `avatars/{uid}/avatar.{ext}` + update profile.photo_url
-- `uploadDriverDoc(file, type: 'sim'|'stnk')` → upload ke `driver-documents/{uid}/...`
+**`src/modules/admin/index.ts`** — admin routes otomatis di-gate `requireRole: "admin"` oleh registry. `/admin/login` tetap public.
 
-### 3. Halaman /auth (Terpadu)
+**`src/modules/auth/index.ts`** — semua public.
 
-**`AuthPage.tsx`** — single page dengan tabs Login | Sign Up:
-- Mode Login: email + password + tombol "Lupa password?"
-- Mode Sign Up: nama lengkap + email + password + **role selector** (Customer / Driver) + phone (opsional, wajib untuk driver)
-- Setelah signUp:
-  - Insert ke `user_roles` (role pilihan)
-  - Kalau driver → ensure drivers row ada (dengan vehicle_type & plate placeholder, edit kemudian di profile)
-- Setelah signIn:
-  - Baca roles → redirect:
-    - driver → `/driver`
-    - admin → `/admin`
-    - customer (default) → query param `?from=` atau `/shuttle`
-- Branding: pakai card center, logo PYU-GO, switcher tab clean
+### 3. Hapus Guard Manual yang Duplikat
 
-URL params:
-- `/auth?role=driver` → pre-select tab Driver di signup
-- `/auth?from=/shuttle/my-bookings` → redirect setelah login
+**`DriverHome.tsx`** — hapus blok `useEffect` yang cek session + role manual (lines ~32-55) karena `<RequireAuth role="driver">` sudah menangani. Tetap ambil `userId` dari `useAuth()` context.
 
-**Existing pages (`CustomerLogin`, `DriverLogin`, `AdminLogin`)**:
-- Hapus `CustomerLogin` & `DriverLogin` (route redirect ke `/auth`)
-- `AdminLogin` tetap ada di `/admin/login` (karena perlu UI grant_admin), tapi pakai shared auth core
+**`AdminLayout.tsx`** — tidak butuh perubahan (sudah di balik gate registry).
 
-### 4. Forgot/Reset Password
+**`MyBookings.tsx` & `CustomerProfile.tsx`** — kalau ada cek manual session, hapus, karena sudah di-gate.
 
-- Tombol "Lupa password?" di /auth → `ForgotPasswordPage` atau modal inline → `resetPasswordForEmail({ redirectTo: ${origin}/reset-password })`
-- `ResetPasswordPage` di `/reset-password` (PUBLIC route):
-  - Cek `type=recovery` di URL hash
-  - Form: password baru + konfirmasi
-  - `supabase.auth.updateUser({ password })` → toast → redirect ke /auth
+### 4. Improvement UX
 
-### 5. Profile Pages
+**`RequireAuth.tsx`** — sudah ada, tapi tambahkan toast saat redirect karena role mismatch supaya user tahu kenapa di-bounce ke `/`. Contoh: "Akses ditolak. Halaman ini hanya untuk Driver."
 
-**`CustomerProfile.tsx` — `/shuttle/profile`** (RequireAuth):
-- Header: avatar besar (clickable upload), nama, email
-- Form: full_name, phone, address, bio
-- Tombol: "Ubah password" → modal
-- Tombol: "Logout"
-- Section **Statistik**: total booking, total spend (query `shuttle_bookings` + `hotel_bookings` where customer_id = uid)
-- Section **Riwayat singkat**: 3 booking terakhir + link "Lihat semua" → /shuttle/my-bookings
+**`AdminLogin.tsx`** — kalau user sudah login & punya role admin → auto-redirect ke `/admin`. Kalau login tapi bukan admin → tampilkan tombol "Logout & Login ulang". (Sudah sebagian ada di refreshStatus, akan dirapikan.)
 
-**`DriverProfile.tsx` — `/driver/profile`** (RequireAuth role=driver):
-- Header: avatar, nama, rating ⭐, badge verifikasi (pending/verified/rejected)
-- Form: full_name, phone, address
-- Section **Kendaraan**: vehicle_type (select), plate (input)
-- Section **Dokumen**: upload SIM (image/pdf) + tanggal kadaluarsa, upload STNK; preview thumbnail; status verifikasi
-- Section **Statistik**: total trip, rating, earning hari ini/minggu/bulan (query `rides` completed + sum fare)
-- Tombol: "Ubah password", "Logout"
+### 5. (Opsional) Verification Gate untuk Driver
 
-**Admin verifikasi dokumen** (small bonus): kolom `verification_status` bisa di-update lewat AdminInventory atau page baru — tapi *out of scope* untuk implementasi ini, struktur saja siap.
+Driver yang `verification_status !== 'verified'` boleh masuk `/driver/profile` (untuk upload dokumen) tapi **tidak boleh** akses `/driver` (home/online toggle) maupun `/driver/ride/:id`. Tambah varian `<RequireAuth role="driver" requireVerified>` yang baca `drivers.verification_status` via context (tambah ke `AuthProvider` saat user punya role driver). Kalau belum verified → redirect ke `/driver/profile` + toast.
 
-### 6. Routing & Navigation Update
-
-**Buat `src/modules/auth/index.ts`** — manifest dengan routes `/auth`, `/forgot-password`, `/reset-password`. Daftarkan di `moduleRegistry.ts`.
-
-**Update `driver/index.ts`** — tambah `/driver/profile` (lazy). Wrap `/driver` dengan `<RequireAuth role="driver">`.
-
-**Update `shuttle/index.ts`** — tambah `/shuttle/profile`. Update `/shuttle/my-bookings` & `/shuttle/login` (rute /shuttle/login redirect ke /auth).
-
-**Update `App.tsx`** — wrap `<Routes>` dengan `<AuthProvider>`.
-
-**Navigation entry points**:
-- `ShuttleHome.tsx`: tombol/icon profile di header (kalau login → /shuttle/profile, kalau tidak → /auth)
-- `DriverHome.tsx`: avatar di header → /driver/profile (replace logout button, logout di dalam profile)
-- `BottomNav` (kalau ada): tab Profile
-
-### 7. File Summary
-
-**NEW**
-- `src/shared/auth/AuthProvider.tsx`, `useAuth.ts`, `useRequireRole.ts`, `RequireAuth.tsx`, `authApi.ts`, `index.ts`
-- `src/modules/auth/pages/AuthPage.tsx`, `ResetPasswordPage.tsx`, `ForgotPasswordPage.tsx`, `index.ts`
-- `src/modules/shuttle/pages/CustomerProfile.tsx`
-- `src/modules/driver/pages/DriverProfile.tsx`
-- 1 migration SQL
+### File Summary
 
 **EDIT**
-- `src/App.tsx` — wrap dengan AuthProvider
-- `src/shared/moduleRegistry.ts` — tambah authModule
-- `src/modules/driver/index.ts`, `src/modules/driver/pages/DriverHome.tsx` — pakai RequireAuth + entry profile
-- `src/modules/shuttle/index.ts`, `src/modules/shuttle/pages/ShuttleHome.tsx`, `MyBookings.tsx` — entry profile
-- `src/modules/admin/pages/AdminLogin.tsx` — pakai shared authApi (tetap di /admin/login)
+- `src/shared/moduleSystem.ts` — tambah field `requireAuth`/`requireRole` di tipe route
+- `src/shared/moduleRegistry.ts` — auto-wrap element dengan `<RequireAuth>` saat flatten routes; admin routes default require admin
+- `src/shared/auth/RequireAuth.tsx` — toast saat role mismatch + dukung `requireVerified`
+- `src/shared/auth/AuthProvider.tsx` — load `driverProfile.verification_status` saat user punya role driver
+- `src/modules/driver/index.ts` — tag route dengan `requireRole: "driver"` (+ `requireVerified` untuk home & ride)
+- `src/modules/shuttle/index.ts` — tag `/shuttle/profile` & `/shuttle/my-bookings` dengan `requireAuth`
+- `src/modules/auth/index.ts` — eksplisit public (no-op)
+- `src/modules/driver/pages/DriverHome.tsx` — hapus guard manual
+- `src/modules/admin/pages/AdminLogin.tsx` — auto-redirect kalau sudah admin
 
-**DELETE**
-- `src/modules/shuttle/pages/CustomerLogin.tsx` (route redirect ke /auth)
-- `src/modules/driver/pages/DriverLogin.tsx` (route redirect ke /auth)
-
-### 8. Tidak Termasuk
-
-- Email verification custom branding (default Lovable email cukup)
-- OAuth (Google/Apple) — bisa fitur lanjutan
-- Admin page khusus verifikasi dokumen driver (struktur disiapkan, UI menyusul)
-- 2FA / phone OTP
+**Tidak ada migration DB**: semua RLS sudah benar. Ini murni client-side route guarding (UX), RLS tetap jadi backstop.
 
 ### Hasil
-
-- **Satu pintu auth**: `/auth` untuk semua role (Customer, Driver). Admin tetap di `/admin/login` karena workflow grant role.
-- **Profile lengkap**: Customer (basic + stats + recent bookings), Driver (basic + vehicle + dokumen SIM/STNK + earning stats).
-- **Forgot password** lengkap dengan `/reset-password`.
-- **Shared auth core** pakai context — semua komponen tinggal `useAuth()`. Routes protected pakai `<RequireAuth role="…">`.
-- Code auth duplicate (3 halaman login) dihapus, jadi shared.
+- Akses `/admin/*` tanpa role admin → redirect ke `/` + toast "Akses ditolak"
+- Akses `/driver/*` tanpa role driver → redirect ke `/auth?role=driver`
+- Akses `/shuttle/profile` tanpa login → redirect ke `/auth?from=/shuttle/profile`
+- Driver belum verified tidak bisa go-online (bounced ke profile untuk upload SIM/STNK)
+- Tidak ada lagi guard logic duplikat di dalam page; semua deklaratif di manifest
 
