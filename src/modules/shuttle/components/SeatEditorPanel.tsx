@@ -128,6 +128,10 @@ export function SeatEditorPanel({ initialKey, initialVehicle, initialTier }: Pro
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [authStatus, setAuthStatus] = useState<"loading" | "no-auth" | "no-admin" | "admin">("loading");
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyTargets, setCopyTargets] = useState<LayoutKey[]>([]);
+  const [copyIncludeImage, setCopyIncludeImage] = useState(true);
+  const [copying, setCopying] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Check admin role on mount
