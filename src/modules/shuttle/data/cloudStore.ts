@@ -454,10 +454,15 @@ export function isHydrated() {
 }
 
 // ============== Mutations ==============
-export async function persistRayons(rayons: Rayon[]): Promise<void> {
-  // Replace-all strategy via upsert + delete missing
-  const ids = rayons.map((r) => r.id);
-  // Upsert rayon rows
+
+/** Generic save result returned by all persist* functions. */
+export interface SaveResult {
+  ok: boolean;
+  error?: { code?: string; message: string };
+}
+
+export async function persistRayons(rayons: Rayon[]): Promise<SaveResult> {
+  // Upsert rayon rows — primary RLS probe
   const rayonRows = rayons.map((r, idx) => ({
     id: r.id,
     name: r.name,
@@ -469,16 +474,35 @@ export async function persistRayons(rayons: Rayon[]): Promise<void> {
     per_pickup_fare: r.perPickupFare ?? false,
     sort_order: idx,
   }));
-  await supabase.from("rayons").upsert(rayonRows);
-  if (ids.length > 0) {
-    // delete rayons not in list
-    await supabase.from("rayons").delete().not("id", "in", `(${ids.map((i) => `"${i}"`).join(",")})`);
+  const upRes = await supabase.from("rayons").upsert(rayonRows).select("id");
+  if (upRes.error) {
+    console.error("[cloudStore] persistRayons upsert failed:", upRes.error);
+    return { ok: false, error: { code: upRes.error.code, message: upRes.error.message } };
   }
-  // Pickup points: delete + reinsert per rayon (simple)
+  // RLS silent-fail probe: if we sent rows but got 0 back, likely blocked
+  if (rayonRows.length > 0 && (upRes.data?.length ?? 0) === 0) {
+    return { ok: false, error: { code: "42501", message: "row-level security: upsert blocked" } };
+  }
+
+  const ids = rayons.map((r) => r.id);
+  if (ids.length > 0) {
+    const delRes = await supabase
+      .from("rayons")
+      .delete()
+      .not("id", "in", `(${ids.map((i) => `"${i}"`).join(",")})`);
+    if (delRes.error) {
+      console.error("[cloudStore] persistRayons delete failed:", delRes.error);
+      return { ok: false, error: { code: delRes.error.code, message: delRes.error.message } };
+    }
+  }
+  // Pickup points: delete + reinsert per rayon
   for (const r of rayons) {
-    await supabase.from("pickup_points").delete().eq("rayon_id", r.id);
+    const ppDel = await supabase.from("pickup_points").delete().eq("rayon_id", r.id);
+    if (ppDel.error) {
+      return { ok: false, error: { code: ppDel.error.code, message: ppDel.error.message } };
+    }
     if (r.pickupPoints.length > 0) {
-      await supabase.from("pickup_points").insert(
+      const ppIns = await supabase.from("pickup_points").insert(
         r.pickupPoints.map((p, i) => ({
           rayon_id: r.id,
           code: p.code,
@@ -490,10 +514,14 @@ export async function persistRayons(rayons: Rayon[]): Promise<void> {
           sort_order: i,
         })),
       );
+      if (ppIns.error) {
+        return { ok: false, error: { code: ppIns.error.code, message: ppIns.error.message } };
+      }
     }
   }
   cache.rayons = rayons;
   notify();
+  return { ok: true };
 }
 
 export interface DepartTimesSaveResult {
