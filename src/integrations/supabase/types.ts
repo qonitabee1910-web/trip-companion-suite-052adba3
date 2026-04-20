@@ -557,6 +557,9 @@ export type Database = {
           date: string
           id: string
           pax: number
+          payment_method: string | null
+          payment_ref: string | null
+          payment_status: string | null
           pickup: string
           rayon_id: string
           rayon_name: string
@@ -579,6 +582,9 @@ export type Database = {
           date: string
           id?: string
           pax?: number
+          payment_method?: string | null
+          payment_ref?: string | null
+          payment_status?: string | null
           pickup: string
           rayon_id: string
           rayon_name: string
@@ -601,6 +607,9 @@ export type Database = {
           date?: string
           id?: string
           pax?: number
+          payment_method?: string | null
+          payment_ref?: string | null
+          payment_status?: string | null
           pickup?: string
           rayon_id?: string
           rayon_name?: string

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { format, parseISO, isValid } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import {
@@ -9,13 +10,12 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Printer, User, Phone, MapPin, Calendar, Clock, Ticket, Armchair, MessageCircle } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { SeatMap } from "@/modules/shuttle/components/SeatMap";
+import { Download, FileImage, MessageCircle, Ticket, Loader2 } from "lucide-react";
+import { TicketCard } from "@/modules/shuttle/components/TicketCard";
+import { downloadTicketPDF, downloadTicketPNG } from "@/modules/shuttle/lib/exportTicket";
+import { getDestination } from "@/modules/shuttle/data/rayons";
 import type { ShuttleBooking, BookingStatus } from "@/modules/shuttle/types/booking";
-import type { ServiceTier } from "@/modules/shuttle/data/seatLayouts";
-import { getVehicleTypeById } from "@/modules/shuttle/data/repository";
+import { toast } from "sonner";
 
 interface Props {
   booking: ShuttleBooking | null;
@@ -30,6 +30,7 @@ const statusColor: Record<BookingStatus, string> = {
 };
 
 export function BookingDetailDrawer({ booking, open, onOpenChange }: Props) {
+  const [exporting, setExporting] = useState<"pdf" | "png" | null>(null);
   if (!booking) return null;
 
   const d = parseISO(booking.date);
@@ -37,13 +38,20 @@ export function BookingDetailDrawer({ booking, open, onOpenChange }: Props) {
     ? format(d, "EEEE, d MMMM yyyy", { locale: localeId })
     : booking.date;
 
-  const vehicle = getVehicleTypeById(booking.vehicleId);
-  const totalSeats = vehicle?.totalSeats ?? Math.max(...booking.seats, booking.pax);
-  const occupied = new Set(booking.seats); // tampilkan kursi yang dipesan sebagai 'terisi' visual lain
-  const selected = booking.seats;
+  const ticketDomId = `ticket-export-${booking.id}`;
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownload = async (kind: "pdf" | "png") => {
+    setExporting(kind);
+    try {
+      if (kind === "pdf") await downloadTicketPDF(ticketDomId, booking.id);
+      else await downloadTicketPNG(ticketDomId, booking.id);
+      toast.success(`Tiket ${kind.toUpperCase()} ter-download`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal generate tiket");
+    } finally {
+      setExporting(null);
+    }
   };
 
   const handleSendWhatsApp = () => {
@@ -64,8 +72,6 @@ export function BookingDetailDrawer({ booking, open, onOpenChange }: Props) {
       `💰 *Total:* Rp${booking.totalPrice.toLocaleString("id-ID")}`,
       ``,
       `Tunjukkan kode booking *${booking.id}* ke petugas saat penjemputan.`,
-      ``,
-      `Lihat tiket: ${window.location.origin}/admin/shuttle/bookings`,
     ];
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
     window.open(url, "_blank", "noopener");
@@ -75,7 +81,7 @@ export function BookingDetailDrawer({ booking, open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-xl overflow-y-auto print:max-w-full print:shadow-none print:border-0"
+        className="w-full sm:max-w-xl overflow-y-auto"
       >
         <SheetHeader className="text-left">
           <div className="flex items-center justify-between gap-2">
@@ -91,132 +97,31 @@ export function BookingDetailDrawer({ booking, open, onOpenChange }: Props) {
           </div>
         </SheetHeader>
 
-        {/* Printable area */}
-        <div id="eticket-print" className="mt-4 space-y-5">
-          {/* E-ticket header (only for print) */}
-          <div className="hidden print:block text-center border-b pb-3 mb-3">
-            <h1 className="text-2xl font-bold">E-TICKET SHUTTLE</h1>
-            <p className="font-mono text-sm">{booking.id}</p>
-          </div>
-
-          {/* QR code untuk validasi */}
-          <section className="flex flex-col items-center gap-2 rounded-lg border bg-card p-4">
-            <div className="rounded-md bg-white p-2">
-              <QRCodeSVG
-                value={booking.id}
-                size={140}
-                level="M"
-                includeMargin={false}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Tunjukkan QR ini ke petugas untuk validasi
-            </p>
-            <p className="font-mono text-sm font-semibold tracking-wider">{booking.id}</p>
-          </section>
-
-          {/* Passenger info */}
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Penumpang
-            </h3>
-            <div className="rounded-lg border bg-card p-3 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{booking.customerName}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <a href={`tel:${booking.customerPhone}`} className="text-primary hover:underline">
-                  {booking.customerPhone}
-                </a>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Armchair className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {booking.pax} pax • Kursi {booking.seats.join(", ")}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Trip info */}
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Perjalanan
-            </h3>
-            <div className="rounded-lg border bg-card p-3 space-y-2 text-sm">
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <div>
-                  <div className="font-medium">{booking.rayonName}</div>
-                  <div className="text-muted-foreground text-xs">{booking.pickup}</div>
-                </div>
-              </div>
-              <Separator />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{dateLabel}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{booking.time}</span>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Kendaraan</span>
-                <span className="font-medium">{booking.vehicleLabel}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Service</span>
-                <span className="font-medium">{booking.serviceLabel}</span>
-              </div>
-              <div className="flex justify-between pt-2 border-t font-semibold">
-                <span>Total</span>
-                <span className="text-accent">Rp{booking.totalPrice.toLocaleString("id-ID")}</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Seat map */}
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Denah Kursi
-            </h3>
-            <div className="rounded-lg border bg-card p-3">
-              <SeatMap
-                vehicle={booking.vehicleId}
-                totalSeats={totalSeats}
-                occupied={occupied}
-                selected={selected}
-                maxSelect={booking.pax}
-                onToggle={() => {}}
-                tier={booking.serviceTier as ServiceTier}
-              />
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                Kursi yang dipesan ditandai (read-only).
-              </p>
-            </div>
-          </section>
-
-          {/* Footer note */}
-          <p className="text-xs text-muted-foreground text-center print:mt-6">
-            Dibuat: {format(parseISO(booking.createdAt), "d MMM yyyy HH:mm", { locale: localeId })}
-          </p>
+        <div className="mt-4">
+          <TicketCard
+            booking={booking}
+            destinationLabel={getDestination().short}
+            id={ticketDomId}
+          />
         </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex flex-wrap gap-2 print:hidden">
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <Button onClick={() => handleDownload("pdf")} disabled={!!exporting} variant="outline">
+            {exporting === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            PDF
+          </Button>
+          <Button onClick={() => handleDownload("png")} disabled={!!exporting} variant="outline">
+            {exporting === "png" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileImage className="h-4 w-4" />}
+            PNG
+          </Button>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-2">
           <Button
             onClick={handleSendWhatsApp}
             className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
           >
             <MessageCircle className="h-4 w-4" /> Kirim via WhatsApp
-          </Button>
-          <Button onClick={handlePrint} variant="outline" className="flex-1">
-            <Printer className="h-4 w-4" /> Cetak
           </Button>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Tutup

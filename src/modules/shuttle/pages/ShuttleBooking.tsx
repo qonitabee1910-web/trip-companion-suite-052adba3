@@ -7,15 +7,27 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Loader2, Download, FileImage, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { SeatMap } from "../components/SeatMap";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { PaymentMethodPicker } from "../components/PaymentMethodPicker";
+import { TicketCard } from "../components/TicketCard";
 import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import { getService, getVehicleType, calcFareBreakdown, getVehicleSeatCount, SERVICES, VEHICLE_TYPES } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { addBooking } from "../data/repository";
 import { getOccupiedSeats } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
+import {
+  createPayment,
+  getActivePaymentMethods,
+  type PaymentMethodId,
+} from "../data/payment";
+import { downloadTicketPDF, downloadTicketPNG } from "../lib/exportTicket";
+import type { ShuttleBooking } from "../types/booking";
+
+type Step = "seat" | "form" | "payment" | "success";
 
 const ShuttleBooking = () => {
   const [params] = useSearchParams();
@@ -50,16 +62,42 @@ const ShuttleBooking = () => {
   );
 
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
-  const [step, setStep] = useState<"seat" | "form" | "success">("seat");
+  const [step, setStep] = useState<Step>("seat");
   const [form, setForm] = useState({ name: "", phone: "" });
-  const [bookingId, setBookingId] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<ShuttleBooking | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | "png" | null>(null);
 
   const breakdown = calcFareBreakdown(vehicle, service, rayon, pickupCode);
   const unitPrice = breakdown.total;
   const total = unitPrice * pax;
 
-  const handlePay = () => {
-    if (!form.name || !form.phone) return;
+  const activeMethods = getActivePaymentMethods();
+  const methodLabel = activeMethods.find((m) => m.id === paymentMethod)?.label;
+
+  const handlePay = async () => {
+    if (!paymentMethod) {
+      toast.error("Pilih metode pembayaran dulu");
+      return;
+    }
+    setPaying(true);
+    const result = await createPayment({
+      amount: total,
+      method: paymentMethod,
+      customerName: form.name,
+      customerPhone: form.phone,
+      description: `Shuttle ${rayon?.name} → ${DESTINATION.short}`,
+    });
+    if (!result.ok) {
+      setPaying(false);
+      toast.error(result.error || "Pembayaran gagal");
+      return;
+    }
+    if (result.redirectUrl) {
+      // Real gateway: open Snap/Invoice URL
+      window.open(result.redirectUrl, "_blank", "noopener");
+    }
     const created = addBooking({
       rayonId: rayon?.id || "A",
       rayonName: `${rayon?.name ?? ""} (${rayon?.area ?? ""})`,
@@ -76,8 +114,12 @@ const ShuttleBooking = () => {
       totalPrice: total,
       customerName: form.name,
       customerPhone: form.phone,
+      paymentMethod: methodLabel ?? paymentMethod,
+      paymentStatus: result.status === "settled" ? "paid" : "pending",
+      paymentRef: result.ref,
     });
-    setBookingId(created.id);
+    setConfirmedBooking(created);
+    setPaying(false);
     setStep("success");
   };
 
@@ -88,34 +130,143 @@ const ShuttleBooking = () => {
     );
   };
 
-  if (step === "success") {
+  const handleDownload = async (kind: "pdf" | "png") => {
+    if (!confirmedBooking) return;
+    setExporting(kind);
+    try {
+      if (kind === "pdf") await downloadTicketPDF("ticket-export", confirmedBooking.id);
+      else await downloadTicketPNG("ticket-export", confirmedBooking.id);
+      toast.success(`Tiket ${kind.toUpperCase()} ter-download`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal generate tiket");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  // ============ SUCCESS ============
+  if (step === "success" && confirmedBooking) {
     return (
       <ResponsiveLayout mobileTitle="E-Ticket" mobileBack="/" hideBottomNav mobileHeaderVariant="plain">
-        <div className="container max-w-lg py-10 px-4">
-          <Card className="p-8 text-center">
-            <CheckCircle2 className="h-16 w-16 text-success mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Tiket Dikonfirmasi!</h1>
-            <p className="text-muted-foreground mb-6 font-mono font-bold">
-              {bookingId || `TRV-S${Date.now().toString().slice(-7)}`}
+        <div className="container max-w-lg py-6 px-4 space-y-4">
+          <div className="text-center">
+            <CheckCircle2 className="h-14 w-14 text-success mx-auto mb-2" />
+            <h1 className="text-xl font-bold">Pembayaran Berhasil!</h1>
+            <p className="text-sm text-muted-foreground">
+              Simpan tiket Anda untuk ditunjukkan saat boarding.
             </p>
-            <div className="text-left bg-muted/50 rounded-lg p-4 space-y-2 mb-6 text-sm">
-              <div className="flex justify-between"><span>Rayon</span><span className="font-medium">{rayon?.name} ({rayon?.area})</span></div>
-              <div className="flex justify-between"><span>Tujuan</span><span className="font-medium">{DESTINATION.short}</span></div>
-              <div className="flex justify-between"><span>Service</span><span className="font-medium">{service.label}</span></div>
-              <div className="flex justify-between"><span>Kendaraan</span><span className="font-medium">{vehicle.label} • {vehicle.vehicleName}</span></div>
-              <div className="flex justify-between"><span>Tanggal</span><span className="font-medium">{dateLabel}</span></div>
-              <div className="flex justify-between"><span>Berangkat</span><span className="font-medium">{time}</span></div>
-              <div className="flex justify-between"><span>Jemput</span><span className="font-medium">{pickupName}</span></div>
-              <div className="flex justify-between"><span>Kursi</span><span className="font-medium">{selectedSeats.join(", ")}</span></div>
-              <div className="flex justify-between pt-2 border-t font-bold"><span>Total</span><span className="text-accent">Rp{total.toLocaleString("id-ID")}</span></div>
+          </div>
+
+          <TicketCard
+            booking={confirmedBooking}
+            destinationLabel={DESTINATION.short}
+          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={() => handleDownload("pdf")}
+              disabled={!!exporting}
+              variant="outline"
+            >
+              {exporting === "pdf" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              PDF
+            </Button>
+            <Button
+              onClick={() => handleDownload("png")}
+              disabled={!!exporting}
+              variant="outline"
+            >
+              {exporting === "png" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileImage className="h-4 w-4" />
+              )}
+              PNG
+            </Button>
+          </div>
+
+          <Button onClick={() => navigate("/")} className="w-full" size="lg">
+            Kembali ke Beranda
+          </Button>
+        </div>
+      </ResponsiveLayout>
+    );
+  }
+
+  // ============ PAYMENT ============
+  if (step === "payment") {
+    return (
+      <ResponsiveLayout
+        mobileTitle="Metode Pembayaran"
+        mobileBack="#"
+        hideBottomNav
+        mobileHeaderVariant="plain"
+      >
+        <div className="container max-w-2xl py-4 md:py-8 px-3 md:px-6 space-y-4">
+          <Card className="p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-lg">Pilih Metode Pembayaran</h2>
+              <button
+                type="button"
+                onClick={() => setStep("form")}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <ArrowLeft className="h-3 w-3" /> Ubah data
+              </button>
             </div>
-            <Button onClick={() => navigate("/")} className="w-full">Kembali ke Beranda</Button>
+
+            <div className="rounded-lg bg-muted/50 p-3 mb-4 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Rute</span>
+                <span className="font-medium truncate ml-2">
+                  {rayon?.name} → {DESTINATION.short}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tanggal</span>
+                <span className="font-medium">{dateLabel} • {time}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Penumpang</span>
+                <span className="font-medium">{pax} pax • Kursi {selectedSeats.join(", ")}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t font-bold text-base">
+                <span>Total</span>
+                <span className="text-accent">Rp{total.toLocaleString("id-ID")}</span>
+              </div>
+            </div>
+
+            <PaymentMethodPicker
+              methods={activeMethods}
+              selected={paymentMethod}
+              onSelect={setPaymentMethod}
+            />
+
+            <Button
+              onClick={handlePay}
+              disabled={!paymentMethod || paying}
+              className="w-full mt-6 bg-accent hover:bg-accent/90 text-accent-foreground h-12 font-semibold"
+            >
+              {paying ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Memproses...
+                </>
+              ) : (
+                <>Bayar Rp{total.toLocaleString("id-ID")}</>
+              )}
+            </Button>
           </Card>
         </div>
       </ResponsiveLayout>
     );
   }
 
+  // ============ FORM ============
   if (step === "form") {
     return (
       <ResponsiveLayout mobileTitle="Data Penumpang" mobileBack="#" hideBottomNav mobileHeaderVariant="plain">
@@ -131,10 +282,16 @@ const ShuttleBooking = () => {
               <Input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-1" />
             </div>
             <Button
-              onClick={handlePay}
+              onClick={() => {
+                if (!form.name || !form.phone) {
+                  toast.error("Lengkapi nama dan telepon");
+                  return;
+                }
+                setStep("payment");
+              }}
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 font-semibold"
             >
-              Bayar Rp{total.toLocaleString("id-ID")}
+              Lanjut ke Pembayaran
             </Button>
           </Card>
         </div>
@@ -142,6 +299,7 @@ const ShuttleBooking = () => {
     );
   }
 
+  // ============ SEAT (default) ============
   return (
     <ResponsiveLayout
       mobileTitle="Pilih Kursi"

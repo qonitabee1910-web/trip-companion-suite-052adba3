@@ -1,4 +1,5 @@
 export type BookingStatus = "confirmed" | "done" | "cancelled";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export interface ShuttleBooking {
   id: string;
@@ -19,4 +20,7 @@ export interface ShuttleBooking {
   customerPhone: string;
   status: BookingStatus;
   createdAt: string; // ISO
+  paymentMethod?: string;
+  paymentStatus?: PaymentStatus;
+  paymentRef?: string;
 }
