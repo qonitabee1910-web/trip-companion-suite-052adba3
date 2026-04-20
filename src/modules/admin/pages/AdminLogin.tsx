@@ -20,7 +20,9 @@ const AdminLogin = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setCurrentUser(null); return; }
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
-    setCurrentUser({ email: user.email ?? "", isAdmin: isAdmin === true });
+    const admin = isAdmin === true;
+    setCurrentUser({ email: user.email ?? "", isAdmin: admin });
+    if (admin) navigate("/admin", { replace: true });
   };
 
   useEffect(() => { refreshStatus(); }, []);
