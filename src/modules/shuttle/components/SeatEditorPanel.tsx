@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Cloud, Loader2 } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Copy, Download, ArrowUp, ArrowDown, Save, Eraser, XCircle, Cloud, Loader2, CopyCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +32,14 @@ import { SeatEditorLivePreview } from "./SeatEditorLivePreview";
 import {
   LAYOUT_PRESETS,
   LAYOUT_LABELS,
+  LAYOUT_KEYS,
   saveLayoutToStorage,
   loadLayoutFromStorage,
   clearLayoutFromStorage,
   hasStoredLayout,
   buildLayoutKey,
   getLayoutUpdatedAt,
+  copyLayoutToTargets,
   DEFAULT_SEAT_SIZE,
   type SeatLayoutConfig,
   type SeatPosition,
@@ -56,6 +58,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Props {
   initialKey?: LayoutKey;
