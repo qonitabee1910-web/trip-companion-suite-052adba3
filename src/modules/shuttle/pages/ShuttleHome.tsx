@@ -24,11 +24,31 @@ const ShuttleHome = () => {
       mobileTitle={content.heroTitle}
       mobileBack="/"
       mobileSubtitle={content.heroSubtitle}
+      mobileHeaderRight={
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => navigate("/shuttle/my-bookings")}
+          className="text-primary-foreground hover:bg-white/10 gap-1"
+        >
+          <Ticket className="h-4 w-4" /> Tiket
+        </Button>
+      }
     >
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container py-6 md:py-10 px-4">
-          <div className="flex items-center gap-2 text-xs md:text-sm text-white/80 mb-2">
-            <MapPin className="h-3.5 w-3.5" /> Tujuan tetap
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs md:text-sm text-white/80 mb-2">
+              <MapPin className="h-3.5 w-3.5" /> Tujuan tetap
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate("/shuttle/my-bookings")}
+              className="hidden md:inline-flex gap-1.5"
+            >
+              <Ticket className="h-4 w-4" /> Riwayat Tiket
+            </Button>
           </div>
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 md:h-14 md:w-14 rounded-xl bg-white/15 flex items-center justify-center">
