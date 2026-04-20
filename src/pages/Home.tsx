@@ -57,24 +57,8 @@ const Home = () => {
         </Card>
       </section>
 
-      {/* Promo */}
-      <section className={isMobile ? "px-3 mt-6" : "container mt-10"}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg md:text-xl font-bold">Promo Spesial</h2>
-          <button className="text-sm font-medium text-primary">Lihat semua</button>
-        </div>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-3 px-3 md:mx-0 md:px-0 md:grid md:grid-cols-3">
-          {promos.map((p) => (
-            <Card key={p.id} className="min-w-[280px] md:min-w-0 bg-gradient-promo text-white border-0 shadow-card">
-              <div className="p-5">
-                <span className="inline-block bg-white/25 backdrop-blur text-xs font-bold px-2 py-1 rounded">{p.tag}</span>
-                <h3 className="mt-3 text-lg font-bold leading-tight">{p.title}</h3>
-                <p className="mt-1 text-sm text-white/90">{p.subtitle}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
+      {/* Promo carousel sudah di hero — section ini dihapus untuk hindari duplikasi */}
+
 
       {/* Recommendations */}
       <section className={isMobile ? "px-3 mt-6 pb-8" : "container mt-10 pb-12"}>
