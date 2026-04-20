@@ -10,7 +10,7 @@ import { POIS, RIDE_OPTIONS, DRIVERS, DEFAULT_LOCATION, distanceKm } from "../da
 import type { POI, RideOption } from "../data/ride";
 import { useLiveDriverPosition } from "../hooks/useLiveDriverPosition";
 import { useRideRequest } from "../hooks/useRideRequest";
-import { LocationPicker } from "../components/LocationPicker";
+import { LocationSearchAdvanced } from "../components/LocationSearchAdvanced";
 import { RideConfirmationSheet } from "../components/RideConfirmationSheet";
 import { DriverSearchingScreen } from "../components/DriverSearchingScreen";
 import { TripOngoingScreen } from "../components/TripOngoingScreen";
@@ -223,8 +223,8 @@ const RideHome = () => {
         <h1 className="font-semibold">Pesan Ride</h1>
       </div>
 
-      {/* Location Picker Modal */}
-      <LocationPicker
+      {/* Location Search Modal */}
+      <LocationSearchAdvanced
         open={locationPickerType !== null}
         onClose={() => setLocationPickerType(null)}
         onSelect={(location) => {
@@ -242,6 +242,9 @@ const RideHome = () => {
             setPickup(POIS[0]); // Fallback to first POI
           }
         }}
+        userLat={userLocation?.lat}
+        userLng={userLocation?.lng}
+        placeholder={locationPickerType === "pickup" ? "Cari titik jemput..." : "Cari tujuan..."}
       />
 
       {/* Ride Confirmation Sheet */}
