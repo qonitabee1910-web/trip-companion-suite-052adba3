@@ -726,10 +726,12 @@ export async function createBooking(
   b: Omit<ShuttleBooking, "id" | "createdAt" | "status"> & { status?: BookingStatus },
 ): Promise<ShuttleBooking> {
   const code = genBookingCode();
+  const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("shuttle_bookings")
     .insert({
       code,
+      customer_id: user?.id ?? null,
       rayon_id: b.rayonId,
       rayon_name: b.rayonName,
       pickup: b.pickup,
