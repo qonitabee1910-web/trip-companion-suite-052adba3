@@ -3,8 +3,10 @@
  *
  * To add a module: import its manifest and append to MODULES.
  */
-import type { AppModule } from "./moduleSystem";
+import { createElement, type ReactNode } from "react";
+import type { AppModule, ModuleRoute, AdminModuleRoute } from "./moduleSystem";
 import { Plane, Train, Ticket, CreditCard, Sparkles } from "lucide-react";
+import { RequireAuth } from "./auth/RequireAuth";
 
 import hotelModule from "@/modules/hotel";
 import shuttleModule from "@/modules/shuttle";
@@ -32,6 +34,19 @@ export const MODULES: AppModule[] = [
   ...upcomingModules,
 ];
 
+/** Wrap an element with <RequireAuth> based on route metadata. */
+function applyGuard<T extends ModuleRoute>(route: T, opts?: { defaultRole?: "admin" | "driver" | "rider" }): T {
+  const role = route.requireRole ?? opts?.defaultRole;
+  const needsAuth = !!route.requireAuth || !!role;
+  if (!needsAuth) return route;
+  const guarded: ReactNode = createElement(
+    RequireAuth,
+    { role, requireVerified: route.requireVerified },
+    route.element,
+  );
+  return { ...route, element: guarded };
+}
+
 /** Modules that opted into the home grid, sorted by order. */
 export function getHomeGridModules(): AppModule[] {
   return MODULES
@@ -40,13 +55,18 @@ export function getHomeGridModules(): AppModule[] {
 }
 
 /** Flatten all public routes from all modules. */
-export function getAllPublicRoutes() {
-  return MODULES.flatMap((m) => m.routes ?? []);
+export function getAllPublicRoutes(): ModuleRoute[] {
+  return MODULES.flatMap((m) => (m.routes ?? []).map((r) => applyGuard(r)));
 }
 
-/** Flatten all admin routes from all modules. */
-export function getAllAdminRoutes() {
-  return MODULES.flatMap((m) => m.adminRoutes ?? []);
+/** Flatten all admin routes from all modules. Admin routes default-protected by 'admin' role unless `/admin/login`. */
+export function getAllAdminRoutes(): AdminModuleRoute[] {
+  return MODULES.flatMap((m) =>
+    (m.adminRoutes ?? []).map((r) => {
+      const isLogin = r.path === "/admin/login";
+      return applyGuard(r, { defaultRole: isLogin ? undefined : "admin" }) as AdminModuleRoute;
+    }),
+  );
 }
 
 /** Group admin sidebar entries by their `group` label, preserving order. */
