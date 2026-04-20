@@ -4,11 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, AlertTriangle, Bus, Car, Caravan } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { calcPrice, getService, getVehicleSeatCount } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { getAvailableCount } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
+import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import hiaceImg from "@/assets/shuttle/base-hiace.png";
 
 const vehicleIcon = { hiace: Bus, suv: Car, minicar: Caravan } as const;
@@ -16,6 +19,7 @@ const vehicleIcon = { hiace: Bus, suv: Car, minicar: Caravan } as const;
 const ShuttleVehicle = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  useCloudSnapshot();
   const rayon = getRayon(params.get("rayon") || "A");
   const DESTINATION = getDestination();
   const SERVICES = getServicesAll();
@@ -103,6 +107,17 @@ const ShuttleVehicle = () => {
                   </div>
                 </div>
               </div>
+
+              <Accordion type="single" collapsible className="mt-3">
+                <AccordionItem value="fare" className="border rounded-lg px-3">
+                  <AccordionTrigger className="text-xs py-2 hover:no-underline">
+                    Lihat rincian tarif
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-3">
+                    <FareBreakdownCard vehicle={v} service={service} rayon={rayon} pax={pax} />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <Button
                 onClick={() => handlePick(v.id)}

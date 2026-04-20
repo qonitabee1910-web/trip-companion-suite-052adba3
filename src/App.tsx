@@ -12,7 +12,6 @@ import HotelDetail from "./modules/hotel/pages/HotelDetail";
 import HotelBooking from "./modules/hotel/pages/HotelBooking";
 
 import ShuttleHome from "./modules/shuttle/pages/ShuttleHome";
-import ShuttleSearch from "./modules/shuttle/pages/ShuttleSearch";
 import ShuttleBooking from "./modules/shuttle/pages/ShuttleBooking";
 import SeatLayoutEditor from "./modules/shuttle/pages/SeatLayoutEditor";
 import ShuttleRayon from "./modules/shuttle/pages/ShuttleRayon";
@@ -61,7 +60,6 @@ const App = () => (
           <Route path="/shuttle/service" element={<ShuttleService />} />
           <Route path="/shuttle/vehicle" element={<ShuttleVehicle />} />
           <Route path="/shuttle/book" element={<ShuttleBooking />} />
-          <Route path="/shuttle/search" element={<ShuttleSearch />} />
           <Route path="/shuttle/seat-editor" element={<SeatLayoutEditor />} />
           <Route path="/shuttle/:id/book" element={<ShuttleBooking />} />
 

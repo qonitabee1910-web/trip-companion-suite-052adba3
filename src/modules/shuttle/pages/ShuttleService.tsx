@@ -4,11 +4,14 @@ import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Sparkles, Crown, Gauge } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CheckCircle2, Sparkles, Crown, Gauge, Info } from "lucide-react";
 import { calcPrice, getVehicleTierPrice } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
+import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 
 const tierIcon = {
   reguler: Gauge,
@@ -19,6 +22,7 @@ const tierIcon = {
 const ShuttleService = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  useCloudSnapshot();
   const rayon = getRayon(params.get("rayon") || "A");
   const DESTINATION = getDestination();
   const SERVICES = getServicesAll().filter((s) => s.active !== false);
@@ -99,9 +103,36 @@ const ShuttleService = () => {
                     <p className="text-xs text-muted-foreground">{s.description}</p>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[10px] text-muted-foreground">mulai</p>
-                  <p className="font-bold text-accent">Rp{startPrice.toLocaleString("id-ID")}</p>
+                <div className="text-right shrink-0 flex items-start gap-1">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">mulai</p>
+                    <p className="font-bold text-accent">Rp{startPrice.toLocaleString("id-ID")}</p>
+                  </div>
+                  {cheapestForTier && rayon && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Lihat rincian tarif"
+                          className="text-muted-foreground hover:text-foreground p-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-72">
+                        <p className="text-xs font-semibold mb-2">
+                          Estimasi {s.label} • {cheapestForTier.label}
+                        </p>
+                        <FareBreakdownCard
+                          vehicle={cheapestForTier}
+                          service={s}
+                          rayon={rayon}
+                          compact
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
               </div>
 

@@ -7,8 +7,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Route } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { SeatMap } from "../components/SeatMap";
+import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import { getService, getVehicleType, calcFareBreakdown, getVehicleSeatCount, SERVICES, VEHICLE_TYPES } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
 import { addBooking } from "../data/repository";
@@ -18,6 +20,7 @@ import { StepperHeader } from "@/shared/components/StepperHeader";
 const ShuttleBooking = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  useCloudSnapshot();
 
   const rayon = getRayon(params.get("rayon") || "A");
   const DESTINATION = getDestination();
@@ -182,35 +185,14 @@ const ShuttleBooking = () => {
           </div>
 
           {/* Fare breakdown */}
-          <div className="mt-3 pt-3 border-t space-y-1 text-xs">
-            <div className="flex items-center gap-1 text-muted-foreground mb-1">
-              <Route className="h-3 w-3" />
-              <span>Rincian tarif</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                Jarak {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × Rp{breakdown.farePerKm.toLocaleString("id-ID")}
-              </span>
-              <span>Rp{Math.round(breakdown.distanceFare).toLocaleString("id-ID")}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Multiplier {service.label} ×{breakdown.multiplier}</span>
-              <span>Rp{Math.round(breakdown.serviceFare).toLocaleString("id-ID")}</span>
-            </div>
-            {breakdown.surcharge > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Surcharge</span>
-                <span>+Rp{breakdown.surcharge.toLocaleString("id-ID")}</span>
-              </div>
-            )}
-            <div className="flex justify-between pt-1">
-              <span className="text-muted-foreground">Per kursi</span>
-              <span className="font-medium">Rp{unitPrice.toLocaleString("id-ID")}</span>
-            </div>
-            <div className="flex justify-between pt-1">
-              <span className="text-muted-foreground">× {pax} pax</span>
-              <span className="font-bold text-accent">Rp{total.toLocaleString("id-ID")}</span>
-            </div>
+          <div className="mt-3 pt-3 border-t">
+            <FareBreakdownCard
+              vehicle={vehicle}
+              service={service}
+              rayon={rayon}
+              pickupCode={pickupCode}
+              pax={pax}
+            />
           </div>
 
           <Button
