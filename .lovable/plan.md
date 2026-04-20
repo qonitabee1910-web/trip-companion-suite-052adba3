@@ -1,154 +1,195 @@
 
 
-## Plan: Modul Metode Bayar (Midtrans/Xendit-ready) + Download Tiket
-
-### Konteks
-Saat ini `ShuttleBooking.tsx` langsung `addBooking` saat klik "Bayar" — tidak ada step pilih metode pembayaran, tidak ada gateway, dan tiket sukses hanya ditampilkan di layar (tidak bisa di-download). Admin juga belum punya halaman untuk konfigurasi payment gateway.
+## Plan: Modul Auth Terpadu + Profile Page per Role
 
 ### Arsitektur
 
 ```text
-Booking Flow:
-seat → form → [BARU] payment → success (with download)
+src/shared/auth/                   ← shared auth core (NEW)
+  AuthProvider.tsx                 ← context: session, user, roles, ready
+  useAuth.ts                       ← hook: { user, roles, isCustomer, isDriver, isAdmin }
+  useRequireRole.ts                ← gate hook: redirect kalau role tidak match
+  RequireAuth.tsx                  ← komponen wrapper untuk protected routes
+  authApi.ts                       ← signUp/signIn/signOut/resetPassword/uploadAvatar
+  storageBuckets.ts                ← bucket constants
 
-Settings Source:
-shuttle_settings(key='payment_gateway') → { provider, mode, methods[], midtrans?, xendit? }
-                ↓ admin write       ↑ public read (untuk tampilkan metode aktif)
-        AdminPayments page                BookingPayment step
+src/modules/auth/                  ← modul auth terpadu (NEW)
+  pages/AuthPage.tsx               ← /auth — login/signup, pilih role saat signup
+  pages/ResetPasswordPage.tsx      ← /reset-password
+  pages/ForgotPasswordPage.tsx     ← /forgot-password (atau inline di /auth)
+  index.ts                         ← manifest
+
+src/modules/shuttle/pages/
+  CustomerProfile.tsx              ← /shuttle/profile (NEW)
+
+src/modules/driver/pages/
+  DriverProfile.tsx                ← /driver/profile (NEW)
 ```
 
-### 1. Admin: Halaman Pengaturan Payment Gateway
-
-**File baru:** `src/modules/admin/pages/AdminPayments.tsx`
-- Form admin pilih:
-  - Provider aktif: **Midtrans** / **Xendit** / **Mock (Simulasi)**
-  - Mode: **Sandbox** / **Production**
-  - Metode pembayaran yang ditampilkan ke user (checklist): QRIS, Virtual Account (BCA/BNI/BRI/Mandiri), GoPay, OVO, DANA, ShopeePay, Credit Card, Bank Transfer
-  - Field credentials per provider (slot siap, optional):
-    - Midtrans: Server Key, Client Key
-    - Xendit: API Key, Webhook Token
-  - Catatan: jika kosong → otomatis fallback ke mode Mock
-- Simpan ke `shuttle_settings` key=`payment_gateway` (JSONB).
-- **Penting**: server keys disimpan di JSONB (acceptable untuk demo), tapi UI tampilkan warning "untuk produksi pindahkan ke Edge Function secrets".
-
-**Daftar di manifest:** `src/modules/admin/index.ts` → tambah adminRoute `/admin/payments` dengan icon `CreditCard`, group "Setup Layanan", order 50.
-
-### 2. Data Layer
-
-**File baru:** `src/modules/shuttle/data/payment.ts`
-- Type `PaymentSettings`, `PaymentMethod`, `PaymentProvider`.
-- `getPaymentSettings()` baca dari `cloudCache` (settings sudah dihydrate via existing settings refetch).
-- `savePaymentSettings(settings)` → upsert ke `shuttle_settings`.
-- `createPayment(booking, method)`:
-  - Jika provider = `mock` atau credentials kosong → return `{ status: "pending", id: "MOCK-xxx" }` lalu otomatis sukses setelah 2 detik (simulator).
-  - Jika provider = `midtrans`/`xendit` → panggil edge function `create-payment` (lihat #4).
-
-**Update `cloudStore.ts`:** tambah `paymentSettings` ke cache + load dari `shuttle_settings` key=`payment_gateway`.
-
-**Update `ShuttleBooking` type:** tambah field optional `paymentMethod`, `paymentStatus`, `paymentRef`. Migration ringan untuk `shuttle_bookings` (kolom nullable).
-
-### 3. Step "Payment" di Booking Flow
-
-**Update `ShuttleBooking.tsx`:**
-- Tambah step `"payment"` antara `form` dan `success`.
-- Setelah isi data → tombol jadi "Lanjut ke Pembayaran" → step payment.
-- Step payment menampilkan:
-  - Ringkasan total
-  - Pilih metode (filter berdasarkan `methods[]` aktif dari admin)
-  - Tombol "Bayar Sekarang"
-- Klik bayar → `createPayment()` → loading state → success (simulator) atau redirect ke Snap (Midtrans) / Invoice URL (Xendit).
-- Jika sukses → `addBooking({ ..., paymentMethod, paymentStatus: "paid" })` → masuk step success.
-
-**File baru:** `src/modules/shuttle/components/PaymentMethodPicker.tsx` — grid pilihan metode dengan icon (lucide: QrCode, CreditCard, Wallet, Building2).
-
-### 4. Edge Function (struktur siap real, sekarang mock-aware)
-
-**File baru:** `supabase/functions/create-payment/index.ts`
-- Input: `{ bookingDraft, method, provider }`.
-- Baca settings dari `shuttle_settings` (service role).
-- Jika `provider === "midtrans"` & server key ada → call Midtrans Snap API → return `{ token, redirect_url }`.
-- Jika `provider === "xendit"` & key ada → call Xendit Invoice API → return `{ invoice_url }`.
-- Else → return `{ mock: true, status: "settled" }`.
-- Validasi input dengan Zod, CORS headers, `verify_jwt = false` (guest checkout).
-
-**File baru:** `supabase/functions/payment-webhook/index.ts` — placeholder untuk callback (skeleton, log only). User tinggal update status booking nanti saat aktifkan real mode.
-
-### 5. Download Tiket (PDF + PNG)
-
-**Dependencies tambah:**
-- `jspdf` — generate PDF
-- `html-to-image` — generate PNG dari DOM
-
-**File baru:** `src/modules/shuttle/components/TicketCard.tsx`
-- Komponen tiket terpadu (dipakai di success page + AdminBookings drawer).
-- Berisi: header brand, QR code (existing `qrcode.react`), barcode kode booking (pakai `react-barcode` atau JsBarcode lewat svg manual — **akan pakai `react-barcode`** untuk simple), semua detail booking (rayon, pickup, tujuan, tanggal, jam, kendaraan, service, kursi, pax, customer, total, metode bayar, status), footer instruksi.
-- Layout fixed-width (380px) supaya konsisten saat di-export.
-
-**File baru:** `src/modules/shuttle/lib/exportTicket.ts`
-- `downloadTicketPDF(elementId, bookingId)` — html-to-image → JPEG → embed ke jsPDF A6, save sebagai `Ticket-${bookingId}.pdf`.
-- `downloadTicketPNG(elementId, bookingId)` — html-to-image langsung → save `.png`.
-
-**Update success step di `ShuttleBooking.tsx`:**
-- Render `<TicketCard id="ticket-export" booking={...} />`
-- 2 tombol: "Download PDF" + "Download PNG"
-- Tombol "Kembali ke Beranda"
-
-**Update `BookingDetailDrawer.tsx`:**
-- Replace area print dengan `<TicketCard>`.
-- Tambah tombol "Download PDF" + "Download PNG" sejajar tombol WhatsApp/Cetak.
-
-### 6. Database Migration
+### 1. Database Migration
 
 ```sql
-ALTER TABLE shuttle_bookings 
-  ADD COLUMN payment_method text,
-  ADD COLUMN payment_status text DEFAULT 'paid',
-  ADD COLUMN payment_ref text;
+-- Tambah kolom profil ke profiles
+ALTER TABLE profiles 
+  ADD COLUMN IF NOT EXISTS email text,
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS bio text;
+
+-- Tambah kolom dokumen ke drivers (untuk SIM/STNK + verifikasi)
+ALTER TABLE drivers
+  ADD COLUMN IF NOT EXISTS sim_url text,
+  ADD COLUMN IF NOT EXISTS stnk_url text,
+  ADD COLUMN IF NOT EXISTS sim_expiry date,
+  ADD COLUMN IF NOT EXISTS verification_status text DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS verified_at timestamptz,
+  ADD COLUMN IF NOT EXISTS verified_by uuid;
+
+-- Storage buckets
+INSERT INTO storage.buckets (id, name, public) VALUES
+  ('avatars', 'avatars', true),
+  ('driver-documents', 'driver-documents', false)
+ON CONFLICT DO NOTHING;
+
+-- RLS avatars: public read, owner write
+CREATE POLICY "Avatars publicly viewable" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+CREATE POLICY "Users upload own avatar" ON storage.objects FOR INSERT TO authenticated 
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "Users update own avatar" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- RLS driver-documents: owner only + admin read
+CREATE POLICY "Drivers manage own docs" ON storage.objects FOR ALL TO authenticated
+  USING (bucket_id = 'driver-documents' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE POLICY "Admin read driver docs" ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'driver-documents' AND has_role(auth.uid(), 'admin'));
 ```
-RLS existing tetap berlaku. Tidak butuh tabel baru karena settings disimpan di `shuttle_settings`.
 
-### 7. Manifest Update
+Note: tidak buat tabel terpisah untuk roles — `user_roles` sudah ada. Trigger `handle_new_user` sudah auto-create profile.
 
-`src/modules/admin/index.ts`:
-```ts
-{
-  path: "/admin/payments",
-  element: lazyEl(() => import("./pages/AdminPayments")),
-  sidebar: { label: "Pembayaran", icon: CreditCard, group: "Setup Layanan", order: 50 },
-}
+### 2. Shared Auth Core
+
+**`AuthProvider.tsx`** — context provider yang dipasang di App.tsx, expose:
+- `session`, `user`, `profile`, `roles[]`, `loading`
+- Listener `onAuthStateChange` (set up SEBELUM `getSession()` per best-practice)
+- Auto-refetch roles saat session berubah
+
+**`useAuth.ts`** — hook utama: `{ user, profile, roles, isCustomer, isDriver, isAdmin, signOut }`
+
+**`RequireAuth.tsx`** — wrapper component:
+```tsx
+<RequireAuth role="driver" redirectTo="/auth?role=driver">
+  <DriverHome />
+</RequireAuth>
 ```
+Kalau belum login → redirect ke /auth dengan `from` state. Kalau login tapi role salah → redirect ke home + toast.
 
-### File Summary
+**`authApi.ts`** — fungsi-fungsi:
+- `signUpWithRole(email, password, fullName, role)` → signUp + insert ke user_roles + (kalau driver) insert ke drivers row
+- `signIn(email, password)`
+- `signOut()`
+- `requestPasswordReset(email)`
+- `updatePassword(newPassword)`
+- `uploadAvatar(file)` → upload ke `avatars/{uid}/avatar.{ext}` + update profile.photo_url
+- `uploadDriverDoc(file, type: 'sim'|'stnk')` → upload ke `driver-documents/{uid}/...`
+
+### 3. Halaman /auth (Terpadu)
+
+**`AuthPage.tsx`** — single page dengan tabs Login | Sign Up:
+- Mode Login: email + password + tombol "Lupa password?"
+- Mode Sign Up: nama lengkap + email + password + **role selector** (Customer / Driver) + phone (opsional, wajib untuk driver)
+- Setelah signUp:
+  - Insert ke `user_roles` (role pilihan)
+  - Kalau driver → ensure drivers row ada (dengan vehicle_type & plate placeholder, edit kemudian di profile)
+- Setelah signIn:
+  - Baca roles → redirect:
+    - driver → `/driver`
+    - admin → `/admin`
+    - customer (default) → query param `?from=` atau `/shuttle`
+- Branding: pakai card center, logo PYU-GO, switcher tab clean
+
+URL params:
+- `/auth?role=driver` → pre-select tab Driver di signup
+- `/auth?from=/shuttle/my-bookings` → redirect setelah login
+
+**Existing pages (`CustomerLogin`, `DriverLogin`, `AdminLogin`)**:
+- Hapus `CustomerLogin` & `DriverLogin` (route redirect ke `/auth`)
+- `AdminLogin` tetap ada di `/admin/login` (karena perlu UI grant_admin), tapi pakai shared auth core
+
+### 4. Forgot/Reset Password
+
+- Tombol "Lupa password?" di /auth → `ForgotPasswordPage` atau modal inline → `resetPasswordForEmail({ redirectTo: ${origin}/reset-password })`
+- `ResetPasswordPage` di `/reset-password` (PUBLIC route):
+  - Cek `type=recovery` di URL hash
+  - Form: password baru + konfirmasi
+  - `supabase.auth.updateUser({ password })` → toast → redirect ke /auth
+
+### 5. Profile Pages
+
+**`CustomerProfile.tsx` — `/shuttle/profile`** (RequireAuth):
+- Header: avatar besar (clickable upload), nama, email
+- Form: full_name, phone, address, bio
+- Tombol: "Ubah password" → modal
+- Tombol: "Logout"
+- Section **Statistik**: total booking, total spend (query `shuttle_bookings` + `hotel_bookings` where customer_id = uid)
+- Section **Riwayat singkat**: 3 booking terakhir + link "Lihat semua" → /shuttle/my-bookings
+
+**`DriverProfile.tsx` — `/driver/profile`** (RequireAuth role=driver):
+- Header: avatar, nama, rating ⭐, badge verifikasi (pending/verified/rejected)
+- Form: full_name, phone, address
+- Section **Kendaraan**: vehicle_type (select), plate (input)
+- Section **Dokumen**: upload SIM (image/pdf) + tanggal kadaluarsa, upload STNK; preview thumbnail; status verifikasi
+- Section **Statistik**: total trip, rating, earning hari ini/minggu/bulan (query `rides` completed + sum fare)
+- Tombol: "Ubah password", "Logout"
+
+**Admin verifikasi dokumen** (small bonus): kolom `verification_status` bisa di-update lewat AdminInventory atau page baru — tapi *out of scope* untuk implementasi ini, struktur saja siap.
+
+### 6. Routing & Navigation Update
+
+**Buat `src/modules/auth/index.ts`** — manifest dengan routes `/auth`, `/forgot-password`, `/reset-password`. Daftarkan di `moduleRegistry.ts`.
+
+**Update `driver/index.ts`** — tambah `/driver/profile` (lazy). Wrap `/driver` dengan `<RequireAuth role="driver">`.
+
+**Update `shuttle/index.ts`** — tambah `/shuttle/profile`. Update `/shuttle/my-bookings` & `/shuttle/login` (rute /shuttle/login redirect ke /auth).
+
+**Update `App.tsx`** — wrap `<Routes>` dengan `<AuthProvider>`.
+
+**Navigation entry points**:
+- `ShuttleHome.tsx`: tombol/icon profile di header (kalau login → /shuttle/profile, kalau tidak → /auth)
+- `DriverHome.tsx`: avatar di header → /driver/profile (replace logout button, logout di dalam profile)
+- `BottomNav` (kalau ada): tab Profile
+
+### 7. File Summary
 
 **NEW**
-- `src/modules/admin/pages/AdminPayments.tsx`
-- `src/modules/shuttle/data/payment.ts`
-- `src/modules/shuttle/components/PaymentMethodPicker.tsx`
-- `src/modules/shuttle/components/TicketCard.tsx`
-- `src/modules/shuttle/lib/exportTicket.ts`
-- `supabase/functions/create-payment/index.ts`
-- `supabase/functions/payment-webhook/index.ts`
+- `src/shared/auth/AuthProvider.tsx`, `useAuth.ts`, `useRequireRole.ts`, `RequireAuth.tsx`, `authApi.ts`, `index.ts`
+- `src/modules/auth/pages/AuthPage.tsx`, `ResetPasswordPage.tsx`, `ForgotPasswordPage.tsx`, `index.ts`
+- `src/modules/shuttle/pages/CustomerProfile.tsx`
+- `src/modules/driver/pages/DriverProfile.tsx`
+- 1 migration SQL
 
 **EDIT**
-- `src/modules/shuttle/pages/ShuttleBooking.tsx` — tambah step payment + TicketCard di success
-- `src/modules/shuttle/data/cloudStore.ts` — load/save paymentSettings
-- `src/modules/shuttle/types/booking.ts` — field payment
-- `src/modules/admin/index.ts` — registrasi route AdminPayments
-- `src/modules/admin/components/BookingDetailDrawer.tsx` — pakai TicketCard + tombol download
+- `src/App.tsx` — wrap dengan AuthProvider
+- `src/shared/moduleRegistry.ts` — tambah authModule
+- `src/modules/driver/index.ts`, `src/modules/driver/pages/DriverHome.tsx` — pakai RequireAuth + entry profile
+- `src/modules/shuttle/index.ts`, `src/modules/shuttle/pages/ShuttleHome.tsx`, `MyBookings.tsx` — entry profile
+- `src/modules/admin/pages/AdminLogin.tsx` — pakai shared authApi (tetap di /admin/login)
 
-**Dependencies baru**: `jspdf`, `html-to-image`, `react-barcode`
+**DELETE**
+- `src/modules/shuttle/pages/CustomerLogin.tsx` (route redirect ke /auth)
+- `src/modules/driver/pages/DriverLogin.tsx` (route redirect ke /auth)
 
-**Migration**: 1 ALTER TABLE untuk kolom payment di `shuttle_bookings`
+### 8. Tidak Termasuk
 
-### Tidak Termasuk
-- Tidak setup webhook real callback handling end-to-end (skeleton saja).
-- Tidak refund flow.
-- Tidak simpan riwayat payment terpisah (cukup field di booking).
-- Email tiket otomatis (bisa fitur lanjutan).
+- Email verification custom branding (default Lovable email cukup)
+- OAuth (Google/Apple) — bisa fitur lanjutan
+- Admin page khusus verifikasi dokumen driver (struktur disiapkan, UI menyusul)
+- 2FA / phone OTP
 
 ### Hasil
-- **User flow**: pilih kursi → isi data → **pilih metode bayar** (QRIS/VA/E-Wallet/dll) → bayar (mock auto-success 2 detik) → **download tiket PDF/PNG** lengkap dengan QR + barcode.
-- **Admin flow**: `/admin/payments` → pilih provider (Midtrans/Xendit/Mock), mode, metode aktif, isi credentials → settings tersimpan → langsung berlaku di booking flow.
-- **Real mode**: tinggal isi server key di admin (atau lebih aman: update edge function pakai env var) → otomatis pakai Midtrans Snap / Xendit Invoice.
-- **Tiket**: bisa di-download PDF (cetak) atau PNG (share WA/IG), berisi QR + barcode + semua detail booking + status pembayaran.
+
+- **Satu pintu auth**: `/auth` untuk semua role (Customer, Driver). Admin tetap di `/admin/login` karena workflow grant role.
+- **Profile lengkap**: Customer (basic + stats + recent bookings), Driver (basic + vehicle + dokumen SIM/STNK + earning stats).
+- **Forgot password** lengkap dengan `/reset-password`.
+- **Shared auth core** pakai context — semua komponen tinggal `useAuth()`. Routes protected pakai `<RequireAuth role="…">`.
+- Code auth duplicate (3 halaman login) dihapus, jadi shared.
 
