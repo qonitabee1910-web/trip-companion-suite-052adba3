@@ -437,11 +437,40 @@ const AdminRayons = () => {
           <h2 className="font-semibold flex items-center gap-2 mb-4">
             <Clock className="h-4 w-4 text-primary" /> Jam Berangkat Global
           </h2>
+
+          {authStatus === "no-auth" && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Belum login</p>
+                <p className="text-xs text-muted-foreground">
+                  Login admin di <code>/admin/login</code> untuk mengubah jam berangkat.
+                </p>
+              </div>
+            </div>
+          )}
+          {authStatus === "no-admin" && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Akses terbatas</p>
+                <p className="text-xs text-muted-foreground">
+                  Akun ini bukan admin. Perubahan jam berangkat tidak akan tersimpan ke cloud.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 mb-3">
             {times.map((t) => (
               <Badge key={t} variant="secondary" className="text-sm py-1.5 pl-3 pr-1 gap-1">
                 {t}
-                <button onClick={() => removeTime(t)} className="hover:bg-destructive/20 rounded p-0.5">
+                <button
+                  onClick={() => removeTime(t)}
+                  disabled={!isAdmin || savingTimes}
+                  className="hover:bg-destructive/20 rounded p-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={isAdmin ? "Hapus" : "Login admin diperlukan"}
+                >
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
@@ -454,9 +483,10 @@ const AdminRayons = () => {
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
               maxLength={5}
+              disabled={!isAdmin || savingTimes}
             />
-            <Button onClick={addTime} size="sm">
-              <Plus className="h-4 w-4" /> Tambah
+            <Button onClick={addTime} size="sm" disabled={!isAdmin || savingTimes}>
+              <Plus className="h-4 w-4" /> {savingTimes ? "Menyimpan…" : "Tambah"}
             </Button>
           </div>
         </Card>
