@@ -1,54 +1,68 @@
 
 
-# Plan: Storage bucket untuk denah, Cloud-status badge, & Realtime jam berangkat
+# Analisis Inkonsistensi Seat Editor vs Tampilan User
 
-## 1. Upload denah kursi ke Storage Bucket
+## Akar Masalah
 
-**Masalah**: Saat ini admin upload gambar denah → di-encode jadi `dataURL` base64 → disimpan di kolom `seat_layouts.layout` (JSONB). Untuk gambar 200KB jadi ~270KB base64 di tiap row × 9 kombinasi = bisa MB-an dan lambat saat hydrate.
+Saya cek, ada **3 bug yang berlapis** menyebabkan inkonsistensi:
 
-**Solusi**:
-- Buat storage bucket `seat-layout-images` (public read) via migration.
-- RLS bucket: SELECT public, INSERT/UPDATE/DELETE admin only.
-- Refactor `handleImageUpload` di `SeatEditorPanel.tsx`:
-  1. Upload file → `supabase.storage.from('seat-layout-images').upload(path)`
-  2. Path format: `{vehicleId}-{tier}-{timestamp}.{ext}` supaya cache-bustable.
-  3. Get public URL → simpan URL string di `config.image` (bukan dataURL).
-- Tambah helper `uploadSeatLayoutImage()` di `cloudStore.ts`.
-- Saat `clearLayoutFromStorage` dipanggil, hapus file lama dari storage juga (best effort).
+### Bug 1 (utama): Save layout gagal karena RLS, tapi user di-toast "berhasil" 🚨
+Console log menunjukkan error berulang:
+```
+[seatLayouts] persist failed: { code: "42501",
+  message: "new row violates row-level security policy for table seat_layouts" }
+```
+Dan query DB membuktikan: tabel `seat_layouts` **kosong total** (0 row), padahal admin sudah klik Simpan beberapa kali.
 
-## 2. Badge "Tersimpan di cloud" + waktu update terakhir
+**Penyebab**: RLS `seat_layouts` mengharuskan `has_role(auth.uid(), 'admin')` untuk INSERT. Saat admin pakai Seat Editor **tanpa login** (atau login tapi tidak punya role admin di tabel `user_roles`), insert ditolak DB.
 
-**Perubahan**:
-- Tambah kolom `updated_at` dipakai (sudah ada di tabel `seat_layouts`). Hydrate masukkan `updated_at` ke cache: extend `cache.seatLayouts` value menyimpan `{ payload, updatedAt }`.
-- Di `SeatEditorPanel.tsx`, header card layout-key:
-  - Replace badge "Tersimpan" jadi: `<Badge variant="default">☁ Tersimpan di cloud</Badge>` + teks `Diperbarui: 2 menit lalu` (relative time pakai `Intl.RelativeTimeFormat`).
-  - Saat tombol "Simpan" diklik dan sukses, update timestamp lokal langsung supaya badge instan refresh.
+**Tapi UI menipu**: di `saveLayoutToStorage` (file `seatLayouts.ts` baris 242-266), kode optimistik:
+1. Update cache lokal duluan → editor seolah "tersimpan" + badge "☁ Tersimpan di cloud" muncul
+2. Lalu `void persistSeatLayout(...)` fire-and-forget → error RLS hanya masuk console, **tidak** dipropagasi ke UI
+3. Toast `"disimpan"` tetap muncul
 
-## 3. Realtime Jam Berangkat (sudah ada tabel, tinggal sync)
+Akibat: **admin lihat hasil baru** (karena cache RAM-nya sendiri), **user di device lain lihat preset default** (karena DB kosong → cache mereka pakai `LAYOUT_PRESETS`). Setelah refresh, admin pun balik ke default karena cache di-rehydrate dari DB kosong.
 
-**Status**: Tabel `depart_times` sudah ada + `persistDepartTimes` sudah jalan + hydrate sudah baca dari DB. Saat refresh datanya aman ✅.
+### Bug 2: Cache lokal yang "berhasil" tetap dipakai → ilusi sukses
+Walau persist gagal, cache RAM tetap di-set di line 257:
+```ts
+cloudCache.seatLayouts = { ...cloudCache.seatLayouts, [layoutKey]: payload };
+```
+Membuat editor sendiri konsisten saat masih open, tapi tidak shareable.
 
-**Masalah residual**: Kalau admin di device A tambah jam, device B/customer baru lihat setelah reload manual karena tidak ada realtime listener untuk `depart_times` (saat ini cuma `shuttle_bookings`, `seat_blocks`, `seat_layouts` yang realtime).
+### Bug 3: User lain menunggu realtime yang tidak pernah terkirim
+`SeatMap` user membaca dari `cloudCache.seatLayouts`. Kalau insert ke DB gagal → realtime `seat_layouts` tidak fire → user lain tidak pernah lihat update.
 
-**Solusi**:
-- Migration: aktifkan replica + add publication untuk `depart_times`, `rayons`, `pickup_points`, `services`, `vehicle_types`, `shuttle_settings` supaya semua master data live-sync.
-- Di `setupRealtime()` `cloudStore.ts`, tambah channel generic yang refetch table terkait saat ada perubahan (sederhana: per table, refetch + map ke cache + notify).
+## Solusi
+
+### A. Surface error save ke admin (no more silent failure)
+- Refactor `saveLayoutToStorage` jadi **async** dengan return `Promise<boolean>`. Tunggu `persistSeatLayout` selesai sebelum klaim sukses.
+- Di `SeatEditorPanel.saveLayout`: `await` dan tampilkan toast **error spesifik** (`"Tidak punya izin admin"` jika 42501, `"Gagal koneksi"` lain).
+- Saat error → **rollback** cache lokal supaya tidak ada inkonsistensi RAM vs DB.
+- Set state `saving` + disable tombol selama proses.
+
+### B. Tambah role-check guard di Editor
+- Saat mount `SeatEditorPanel`, panggil `supabase.auth.getUser()` + cek `has_role` → tampilkan banner kuning **"Login admin diperlukan untuk menyimpan ke cloud"** kalau bukan admin. Tombol Simpan jadi disabled.
+
+### C. Pastikan ada minimal 1 admin user (root cause data)
+Saya cek `user_roles` table — kemungkinan besar belum ada user dengan role `admin`. Akan cek query ini saat eksekusi dan, jika perlu, instruksikan admin untuk:
+1. Sign up via halaman auth (bila ada) atau buat user.
+2. Tambah row `user_roles` (admin perlu lewat panel Lovable Cloud / migration manual karena RLS `user_roles` cuma admin yg bisa manage — chicken-and-egg).
+- Solusi: tambahkan **migration seed** untuk grant role `admin` ke user dengan email tertentu. Akan tanyakan email admin saat eksekusi.
+
+### D. Verifikasi sync untuk gambar upload
+Bucket `seat-layout-images` juga punya RLS admin-only INSERT. Sama logikanya — kalau bukan admin, upload gagal. Sudah ditangani di `handleImageUpload` dengan toast error, jadi cukup pastikan flow A+B+C jalan.
 
 ## File yang Disentuh
 
-- **Migration baru**: bucket `seat-layout-images` + storage RLS + enable realtime untuk 6 tabel master.
-- **`src/modules/shuttle/data/cloudStore.ts`**: `uploadSeatLayoutImage()` helper, simpan `updated_at` per layout, expand realtime ke master tables.
-- **`src/modules/shuttle/data/seatLayouts.ts`**: `loadLayoutFromStorage` return juga `updatedAt`.
-- **`src/modules/shuttle/components/SeatEditorPanel.tsx`**: ganti `handleImageUpload` ke storage upload, tambah badge cloud + relative timestamp.
-
-## Yang Tidak Termasuk
-
-- Tidak migrasi otomatis dataURL lama yang sudah tersimpan ke storage — saat admin re-upload, dataURL akan tergantikan URL baru.
-- Tidak ada UI quota/storage usage.
+- **`src/modules/shuttle/data/seatLayouts.ts`** — `saveLayoutToStorage` jadi async + rollback on error.
+- **`src/modules/shuttle/components/SeatEditorPanel.tsx`** — `await save`, state `saving`, banner role-check.
+- **Migration baru** — fungsi RPC `grant_admin_by_email(email text)` SECURITY DEFINER, atau direct seed admin role kalau user sudah confirm email.
+- **Pertanyaan ke user**: email admin yang akan di-grant role.
 
 ## Hasil
 
-- Denah kursi upload → masuk storage bucket, row `seat_layouts` cuma simpan URL pendek → ringan, fast hydrate.
-- Editor menampilkan badge "☁ Tersimpan di cloud · Diperbarui 5 menit lalu".
-- Edit jam berangkat di Admin Rayons device A → device B (admin/customer) langsung dapat update tanpa refresh.
+- Klik Simpan tanpa admin role → toast merah jelas: "Akses ditolak, login admin diperlukan", tidak ada false positive.
+- Klik Simpan dengan admin role → DB benar terisi → realtime broadcast → user di device lain dapat layout baru dalam <1 detik tanpa refresh.
+- Editor & user view **konsisten 100%** karena keduanya baca dari source-of-truth DB yang sama.
 
