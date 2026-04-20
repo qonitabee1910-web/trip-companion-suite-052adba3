@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound.tsx";
 
 import { CloudGate } from "./shared/components/CloudGate";
 import { getAllPublicRoutes, getAllAdminRoutes } from "./shared/moduleRegistry";
+import { AuthProvider } from "./shared/auth";
 
 const queryClient = new QueryClient();
 
@@ -31,9 +32,10 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <CloudGate>
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
+          <AuthProvider>
+            <CloudGate>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
                 <Route path="/" element={<Home />} />
 
                 {publicRoutes.map((r) => (
@@ -48,6 +50,7 @@ const App = () => {
               </Routes>
             </Suspense>
           </CloudGate>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

@@ -11,6 +11,7 @@ import shuttleModule from "@/modules/shuttle";
 import rideModule from "@/modules/ride";
 import driverModule from "@/modules/driver";
 import adminModule from "@/modules/admin";
+import authModule from "@/modules/auth";
 
 /** Coming-soon entries that should appear on the home grid but have no routes yet. */
 const upcomingModules: AppModule[] = [
@@ -22,6 +23,7 @@ const upcomingModules: AppModule[] = [
 ];
 
 export const MODULES: AppModule[] = [
+  authModule,
   hotelModule,
   shuttleModule,
   rideModule,
