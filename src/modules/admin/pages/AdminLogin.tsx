@@ -22,10 +22,13 @@ const AdminLogin = () => {
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
     const admin = isAdmin === true;
     setCurrentUser({ email: user.email ?? "", isAdmin: admin });
-    if (admin) navigate("/admin", { replace: true });
+    if (admin) {
+      // Redirect immediately to admin dashboard when admin role is confirmed
+      navigate("/admin", { replace: true });
+    }
   };
 
-  useEffect(() => { refreshStatus(); }, []);
+  useEffect(() => { refreshStatus(); }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
