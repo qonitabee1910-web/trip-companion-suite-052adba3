@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
 import type { Rayon, PickupPoint } from "../data/rayons";
+import { getRoutingBetweenPoints, formatDistance, formatDuration } from "@/modules/admin/components/RoutingService";
+import { Loader2, Navigation } from "lucide-react";
 
 // Ensure default leaflet icons resolve under Vite
 const DefaultIcon = L.icon({
@@ -32,8 +34,8 @@ function buildIcon(opts: { label: string; isSelected: boolean; isDest: boolean }
   const bg = isDest
     ? "hsl(var(--accent))"
     : isSelected
-    ? "hsl(var(--primary))"
-    : "hsl(var(--card))";
+      ? "hsl(var(--primary))"
+      : "hsl(var(--card))";
   const fg = isDest || isSelected ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))";
   const border = isSelected ? "hsl(var(--primary))" : "hsl(var(--border))";
   const ring = isSelected
@@ -76,6 +78,53 @@ function PanToSelected({ target }: { target: [number, number] | null }) {
   return null;
 }
 
+function RoutingPolylines({
+  points,
+}: {
+  points: Array<{ lat: number; lng: number }>;
+}) {
+  const [routing, setRouting] = useState<any>(null);
+
+  useEffect(() => {
+    if (points.length < 2) {
+      setRouting(null);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      try {
+        const result = await getRoutingBetweenPoints(points);
+        setRouting(result);
+      } catch (error) {
+        console.error("Routing fetch error:", error);
+        setRouting(null);
+      }
+    };
+
+    const timer = setTimeout(fetchRoute, 500);
+    return () => clearTimeout(timer);
+  }, [points]);
+
+  if (!routing) return null;
+
+  return (
+    <>
+      {routing.segments.map((seg, idx) => (
+        <Polyline
+          key={`route-${idx}`}
+          positions={seg.coordinates}
+          pathOptions={{
+            color: "hsl(var(--primary))",
+            weight: 3,
+            opacity: 0.7,
+            dashArray: "5, 5",
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 export const RayonRouteMap = ({
   rayon,
   selectedCode,
@@ -97,6 +146,36 @@ export const RayonRouteMap = ({
   const selectedTarget: [number, number] | null = selectedPoint
     ? [selectedPoint.lat, selectedPoint.lng]
     : null;
+
+  const [routing, setRouting] = useState<any>(null);
+  const [loadingRoute, setLoadingRoute] = useState(false);
+
+  useEffect(() => {
+    if (points.length < 2) {
+      setRouting(null);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      setLoadingRoute(true);
+      try {
+        const coordPoints = points.map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+        }));
+        const result = await getRoutingBetweenPoints(coordPoints);
+        setRouting(result);
+      } catch (error) {
+        console.error("Routing fetch error:", error);
+        setRouting(null);
+      } finally {
+        setLoadingRoute(false);
+      }
+    };
+
+    const timer = setTimeout(fetchRoute, 500);
+    return () => clearTimeout(timer);
+  }, [points]);
 
   if (points.length === 0) {
     return (
@@ -123,10 +202,17 @@ export const RayonRouteMap = ({
         />
         <FitBounds points={polyline} />
         <PanToSelected target={selectedTarget} />
+
+        {/* Static polyline connecting points */}
         <Polyline
           positions={polyline}
-          pathOptions={{ color: "hsl(217 91% 60%)", weight: 4, opacity: 0.85 }}
+          pathOptions={{ color: "hsl(var(--card))", weight: 2, opacity: 0.4 }}
         />
+
+        {/* Routing polylines with actual road network */}
+        <RoutingPolylines points={points} />
+
+        {/* Markers */}
         {points.map((p, idx) => {
           const isDest = p.code === "DEST";
           const isSelected = selectedCode === p.code;
@@ -164,6 +250,26 @@ export const RayonRouteMap = ({
           );
         })}
       </MapContainer>
+
+      {/* Routing info overlay */}
+      {routing && (
+        <div className="absolute bottom-3 left-3 right-3 bg-background/95 backdrop-blur-sm rounded-lg border border-border px-3 py-2 text-xs shadow-lg">
+          <div className="flex items-center gap-3">
+            <Navigation className="h-4 w-4 text-primary shrink-0" />
+            <div className="flex-1">
+              <div className="font-semibold">{formatDistance(routing.totalDistance)}</div>
+              <div className="text-muted-foreground">±{formatDuration(routing.totalDuration)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loadingRoute && (
+        <div className="absolute bottom-3 left-3 bg-background/95 backdrop-blur-sm rounded-lg border border-border px-3 py-2 text-xs shadow-lg flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin text-primary" />
+          <span className="text-muted-foreground">Menghitung rute...</span>
+        </div>
+      )}
     </div>
   );
 };
