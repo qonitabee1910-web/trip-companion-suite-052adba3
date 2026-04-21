@@ -72,8 +72,8 @@ function PanToSelected({ target }: { target: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
     if (!target) return;
-    const targetZoom = Math.max(map.getZoom(), 14);
-    map.flyTo(target, targetZoom, { duration: 0.6 });
+    // Zoom in to level 17 for better visibility of selected pickup point
+    map.flyTo(target, 17, { duration: 0.6 });
   }, [map, target?.[0], target?.[1]]);
   return null;
 }
