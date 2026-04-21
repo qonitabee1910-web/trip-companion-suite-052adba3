@@ -6,143 +6,203 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { MapPin, Clock, Users, AlertCircle } from "lucide-react";
 import { RIDE_OPTIONS } from "../data/ride";
 import type { RideOption } from "../data/ride";
+import type { ServiceTypeId } from "../types/serviceType";
 
 interface RideConfirmationSheetProps {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  pickup?: { name: string; distance?: string };
-  dropoff?: { name: string };
-  selectedRide?: RideOption;
-  fare?: number;
-  distance?: number;
-  eta?: number;
-  loading?: boolean;
+    open: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    pickup?: { name: string; distance?: string };
+    dropoff?: { name: string };
+    selectedRide?: RideOption;
+    fare?: number;
+    distance?: number;
+    eta?: number;
+    loading?: boolean;
+    serviceType?: ServiceTypeId;
+    fareInfo?: {
+        baseFare: number;
+        multiplier: number;
+        bookingFee: number;
+        totalFare: number;
+    };
 }
 
 export const RideConfirmationSheet = React.forwardRef<
-  HTMLDivElement,
-  RideConfirmationSheetProps
+    HTMLDivElement,
+    RideConfirmationSheetProps
 >(
-  (
-    {
-      open,
-      onClose,
-      onConfirm,
-      pickup,
-      dropoff,
-      selectedRide,
-      fare = 0,
-      distance = 0,
-      eta = 0,
-      loading = false,
-    },
-    ref
-  ) => {
-    if (!selectedRide) return null;
+    (
+        {
+            open,
+            onClose,
+            onConfirm,
+            pickup,
+            dropoff,
+            selectedRide,
+            fare = 0,
+            distance = 0,
+            eta = 0,
+            loading = false,
+            serviceType = "standard",
+            fareInfo,
+        },
+        ref
+    ) => {
+        if (!selectedRide) return null;
 
-    return (
-      <Sheet open={open} onOpenChange={onClose}>
-        <SheetContent ref={ref} side="bottom" className="h-auto">
-          <SheetHeader>
-            <SheetTitle>Konfirmasi Pesanan</SheetTitle>
-          </SheetHeader>
+        const getServiceName = (type: ServiceTypeId) => {
+            switch (type) {
+                case "women":
+                    return "Ride Women";
+                case "car":
+                    return "Ride Car Premium";
+                default:
+                    return "Ride Standard";
+            }
+        };
 
-          <div className="space-y-4 mt-6">
-            {/* Route Summary */}
-            <Card className="p-4 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <MapPin className="h-4 w-4 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">Jemput di</p>
-                  <p className="font-semibold text-sm">{pickup?.name}</p>
-                </div>
-              </div>
+        return (
+            <Sheet open={open} onOpenChange={onClose}>
+                <SheetContent ref={ref} side="bottom" className="h-auto">
+                    <SheetHeader>
+                        <SheetTitle>Konfirmasi Pesanan</SheetTitle>
+                    </SheetHeader>
 
-              <div className="h-8 ml-4 border-l-2 border-dashed border-primary opacity-50" />
+                    <div className="space-y-4 mt-6">
+                        {/* Route Summary */}
+                        <Card className="p-4 space-y-3">
+                            <div className="flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <MapPin className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs text-muted-foreground">Jemput di</p>
+                                    <p className="font-semibold text-sm">{pickup?.name}</p>
+                                </div>
+                            </div>
 
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                  <MapPin className="h-4 w-4 text-orange-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">Tujuan</p>
-                  <p className="font-semibold text-sm">{dropoff?.name}</p>
-                </div>
-              </div>
-            </Card>
+                            <div className="h-8 ml-4 border-l-2 border-dashed border-primary opacity-50" />
 
-            {/* Vehicle Details */}
-            <Card className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="h-16 w-16 rounded-lg bg-ride-soft flex items-center justify-center flex-shrink-0">
-                  {selectedRide.icon === "bike" && <span className="text-2xl">🏍️</span>}
-                  {selectedRide.icon === "car" && <span className="text-2xl">🚗</span>}
-                  {selectedRide.icon === "carxl" && <span className="text-2xl">🚙</span>}
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm">{selectedRide.name}</p>
-                  <p className="text-xs text-muted-foreground">{selectedRide.description}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Users className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Hingga {selectedRide.capacity} orang</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
+                            <div className="flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                    <MapPin className="h-4 w-4 text-orange-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs text-muted-foreground">Tujuan</p>
+                                    <p className="font-semibold text-sm">{dropoff?.name}</p>
+                                </div>
+                            </div>
+                        </Card>
 
-            {/* Trip Details */}
-            <div className="grid grid-cols-3 gap-2">
-              <Card className="p-3 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Jarak</p>
-                <p className="font-semibold text-sm">{distance.toFixed(1)} km</p>
-              </Card>
-              <Card className="p-3 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Estimasi</p>
-                <p className="font-semibold text-sm">{eta} menit</p>
-              </Card>
-              <Card className="p-3 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Harga</p>
-                <p className="font-semibold text-sm text-accent">Rp{fare.toLocaleString("id-ID")}</p>
-              </Card>
-            </div>
+                        {/* Vehicle Details */}
+                        <Card className="p-4">
+                            <div className="flex items-start gap-4">
+                                <div className="h-16 w-16 rounded-lg bg-ride-soft flex items-center justify-center flex-shrink-0">
+                                    {selectedRide.icon === "bike" && <span className="text-2xl">🏍️</span>}
+                                    {selectedRide.icon === "car" && <span className="text-2xl">🚗</span>}
+                                    {selectedRide.icon === "carxl" && <span className="text-2xl">🚙</span>}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-semibold text-sm">{selectedRide.name}</p>
+                                    <p className="text-xs text-muted-foreground">{selectedRide.description}</p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Users className="h-3 w-3 text-muted-foreground" />
+                                        <span className="text-xs text-muted-foreground">Hingga {selectedRide.capacity} orang</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
 
-            {/* Price Breakdown */}
-            <Card className="p-4 space-y-2 border-yellow-200 bg-yellow-50">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-700 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-yellow-900">
-                  <p className="font-semibold mb-1">Perhatian</p>
-                  <p>Harga dapat berubah berdasarkan kondisi lalu lintas dan permintaan real-time.</p>
-                </div>
-              </div>
-            </Card>
+                        {/* Trip Details */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <Card className="p-3 text-center">
+                                <p className="text-xs text-muted-foreground mb-1">Jarak</p>
+                                <p className="font-semibold text-sm">{distance.toFixed(1)} km</p>
+                            </Card>
+                            <Card className="p-3 text-center">
+                                <p className="text-xs text-muted-foreground mb-1">Estimasi</p>
+                                <p className="font-semibold text-sm">{eta} menit</p>
+                            </Card>
+                            <Card className="p-3 text-center">
+                                <p className="text-xs text-muted-foreground mb-1">Harga</p>
+                                <p className="font-semibold text-sm text-accent">Rp{fare.toLocaleString("id-ID")}</p>
+                            </Card>
+                        </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3 pb-4">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                disabled={loading}
-                className="flex-1"
-              >
-                Batal
-              </Button>
-              <Button
-                onClick={onConfirm}
-                disabled={loading}
-                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
-              >
-                {loading ? "Sedang Memproses..." : "Pesan Sekarang"}
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-    );
-  }
+                        {/* Service Type Badge */}
+                        <Card className="p-3 bg-muted/50">
+                            <p className="text-xs text-muted-foreground mb-1">Jenis Layanan</p>
+                            <p className="font-semibold text-sm">{getServiceName(serviceType)}</p>
+                        </Card>
+
+                        {/* Price Breakdown */}
+                        {fareInfo && (
+                            <Card className="p-4 space-y-2 border-accent/20 bg-accent/5">
+                                <p className="text-xs font-semibold text-muted-foreground mb-2">Rincian Harga</p>
+                                <div className="space-y-1.5 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Tarif Dasar</span>
+                                        <span>Rp{Math.round(fareInfo.baseFare).toLocaleString("id-ID")}</span>
+                                    </div>
+                                    {fareInfo.multiplier > 1.0 && (
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">
+                                                Pengganda Layanan ({Math.round((fareInfo.multiplier - 1) * 100)}%)
+                                            </span>
+                                            <span className="text-accent font-semibold">
+                                                +Rp{Math.round(fareInfo.baseFare * (fareInfo.multiplier - 1)).toLocaleString("id-ID")}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {fareInfo.bookingFee > 0 && (
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Biaya Pemesanan</span>
+                                            <span className="text-accent font-semibold">+Rp{fareInfo.bookingFee.toLocaleString("id-ID")}</span>
+                                        </div>
+                                    )}
+                                    <div className="border-t pt-1.5 flex justify-between font-semibold">
+                                        <span>Total</span>
+                                        <span className="text-accent">Rp{fareInfo.totalFare.toLocaleString("id-ID")}</span>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+
+                        {/* Price Disclaimer */}
+                        <Card className="p-4 space-y-2 border-yellow-200 bg-yellow-50">
+                            <div className="flex items-start gap-2">
+                                <AlertCircle className="h-4 w-4 text-yellow-700 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm text-yellow-900">
+                                    <p className="font-semibold mb-1">Perhatian</p>
+                                    <p>Harga dapat berubah berdasarkan kondisi lalu lintas dan permintaan real-time.</p>
+                                </div>
+                            </div>
+                        </Card>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 pb-4">
+                            <Button
+                                variant="outline"
+                                onClick={onClose}
+                                disabled={loading}
+                                className="flex-1"
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                onClick={onConfirm}
+                                disabled={loading}
+                                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
+                            >
+                                {loading ? "Sedang Memproses..." : "Pesan Sekarang"}
+                            </Button>
+                        </div>
+                    </div>
+                </SheetContent>
+            </Sheet>
+        );
+    }
 );
 
 RideConfirmationSheet.displayName = "RideConfirmationSheet";

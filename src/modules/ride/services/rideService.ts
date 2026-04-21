@@ -1,6 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { ServiceTypeId } from "../types/serviceType";
 
-export type RideStatus = "pending" | "accepted" | "rejected" | "arriving" | "in_progress" | "completed" | "cancelled";
+export type RideStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "arriving"
+  | "in_progress"
+  | "completed"
+  | "cancelled";
 
 export interface RideRequest {
   id: string;
@@ -14,6 +22,7 @@ export interface RideRequest {
   dest_lng: number;
   dest_name: string;
   ride_type: string;
+  service_type: ServiceTypeId;
   fare: number;
   distance_km: number;
   requested_at: string;
@@ -35,7 +44,8 @@ export async function createRideRequest(
   destName: string,
   rideType: string,
   fare: number,
-  distanceKm: number
+  distanceKm: number,
+  serviceType: ServiceTypeId = "standard",
 ): Promise<RideRequest | null> {
   const { data, error } = await supabase
     .from("rides")
@@ -48,6 +58,7 @@ export async function createRideRequest(
       dest_lng: destLng,
       dest_name: destName,
       ride_type: rideType,
+      service_type: serviceType,
       fare,
       distance_km: distanceKm,
       status: "pending",
@@ -67,7 +78,11 @@ export async function createRideRequest(
  * Get a specific ride by ID
  */
 export async function getRideById(rideId: string): Promise<RideRequest | null> {
-  const { data, error } = await supabase.from("rides").select("*").eq("id", rideId).single();
+  const { data, error } = await supabase
+    .from("rides")
+    .select("*")
+    .eq("id", rideId)
+    .single();
 
   if (error) {
     console.error("Error fetching ride:", error);
@@ -99,7 +114,7 @@ export async function cancelRide(rideId: string): Promise<boolean> {
  */
 export function subscribeToRideUpdates(
   rideId: string,
-  callback: (ride: RideRequest) => void
+  callback: (ride: RideRequest) => void,
 ) {
   const channel = supabase
     .channel(`ride-${rideId}`)
@@ -113,7 +128,7 @@ export function subscribeToRideUpdates(
       },
       (payload) => {
         callback(payload.new as RideRequest);
-      }
+      },
     )
     .subscribe();
 
@@ -125,7 +140,10 @@ export function subscribeToRideUpdates(
 /**
  * Get user's ride history
  */
-export async function getRideHistory(riderId: string, limit = 10): Promise<RideRequest[]> {
+export async function getRideHistory(
+  riderId: string,
+  limit = 10,
+): Promise<RideRequest[]> {
   const { data, error } = await supabase
     .from("rides")
     .select("*")
@@ -139,4 +157,42 @@ export async function getRideHistory(riderId: string, limit = 10): Promise<RideR
   }
 
   return data || [];
+}
+
+/**
+ * Get all rides (admin only)
+ */
+export async function getAllRides(limit = 1000): Promise<RideRequest[]> {
+  const { data, error } = await supabase
+    .from("rides")
+    .select("*")
+    .order("requested_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching all rides:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Update ride status (admin only)
+ */
+export async function updateRideStatus(
+  rideId: string,
+  status: RideStatus,
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("rides")
+    .update({ status })
+    .eq("id", rideId);
+
+  if (error) {
+    console.error("Error updating ride status:", error);
+    return false;
+  }
+
+  return true;
 }

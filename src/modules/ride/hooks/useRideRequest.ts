@@ -8,6 +8,7 @@ import {
   type RideRequest,
   type RideStatus,
 } from "../services/rideService";
+import type { ServiceTypeId } from "../types/serviceType";
 
 export interface RideState {
   rideId: string | null;
@@ -27,7 +28,8 @@ export interface UseRideRequestReturn extends RideState {
     destName: string,
     rideType: string,
     fare: number,
-    distanceKm: number
+    distanceKm: number,
+    serviceType?: ServiceTypeId,
   ) => Promise<RideRequest | null>;
   loadRide: (rideId: string) => Promise<void>;
   cancel: () => Promise<boolean>;
@@ -55,7 +57,8 @@ export function useRideRequest(): UseRideRequestReturn {
       destName: string,
       rideType: string,
       fare: number,
-      distanceKm: number
+      distanceKm: number,
+      serviceType: ServiceTypeId = "standard",
     ) => {
       if (!user?.id) {
         setState((prev) => ({ ...prev, error: "User not authenticated" }));
@@ -74,11 +77,16 @@ export function useRideRequest(): UseRideRequestReturn {
         destName,
         rideType,
         fare,
-        distanceKm
+        distanceKm,
+        serviceType,
       );
 
       if (!ride) {
-        setState((prev) => ({ ...prev, loading: false, error: "Failed to create ride request" }));
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: "Failed to create ride request",
+        }));
         return null;
       }
 
@@ -92,7 +100,7 @@ export function useRideRequest(): UseRideRequestReturn {
 
       return ride;
     },
-    [user?.id]
+    [user?.id],
   );
 
   // Load existing ride

@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, MapPin, Search, Bike, Car, Users, Star, Phone, MessageCircle, X, CheckCircle2, Radio, AlertCircle } from "lucide-react";
 import { POIS, RIDE_OPTIONS, DRIVERS, DEFAULT_LOCATION, distanceKm } from "../data/ride";
 import type { POI, RideOption } from "../data/ride";
+import { ServiceTypeSelector, ServiceTypeInfo } from "../components/ServiceTypeSelector";
+import { calculateServiceTypeFare, type ServiceTypeId } from "../types/serviceType";
 import { useLiveDriverPosition } from "../hooks/useLiveDriverPosition";
 import { useRideRequest } from "../hooks/useRideRequest";
 import { LocationSearchAdvanced } from "../components/LocationSearchAdvanced";
@@ -58,7 +60,7 @@ const FitBounds = ({ points }: { points: [number, number][] }) => {
 
 const iconMap: Record<string, any> = { bike: Bike, car: Car, carxl: Users };
 
-type Stage = "search" | "confirm" | "finding" | "ongoing" | "completed";
+type Stage = "service" | "search" | "confirm" | "finding" | "ongoing" | "completed";
 
 const RideHome = () => {
   const navigate = useNavigate();
@@ -66,7 +68,8 @@ const RideHome = () => {
   const rideState = useRideRequest();
 
   // Local UI state
-  const [stage, setStage] = useState<Stage>("search");
+  const [stage, setStage] = useState<Stage>("service");
+  const [selectedServiceType, setSelectedServiceType] = useState<ServiceTypeId>("standard");
   const [pickup, setPickup] = useState<POI | null>(null);
   const [dest, setDest] = useState<POI | null>(null);
   const [selectedRide, setSelectedRide] = useState<RideOption | null>(null);
@@ -78,7 +81,18 @@ const RideHome = () => {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   const distance = pickup && dest ? distanceKm(pickup, dest) : 0;
-  const fare = selectedRide ? Math.round(selectedRide.basePrice + selectedRide.pricePerKm * distance) : 0;
+
+  // Calculate fare with service type multiplier
+  const fareInfo = selectedRide
+    ? calculateServiceTypeFare(
+      selectedRide.basePrice,
+      selectedRide.pricePerKm,
+      distance,
+      selectedServiceType
+    )
+    : null;
+
+  const fare = fareInfo?.totalFare ?? 0;
 
   // Get user's current location
   useEffect(() => {
@@ -156,7 +170,8 @@ const RideHome = () => {
       dest.name,
       selectedRide.id,
       fare,
-      distance
+      distance,
+      selectedServiceType
     );
 
     if (ride) {
@@ -167,15 +182,21 @@ const RideHome = () => {
   const center: [number, number] = pickup
     ? [pickup.lat, pickup.lng]
     : userLocation
-    ? [userLocation.lat, userLocation.lng]
-    : [DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng];
+      ? [userLocation.lat, userLocation.lng]
+      : [DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng];
 
   const points: [number, number][] = [];
   if (pickup) points.push([pickup.lat, pickup.lng]);
   if (dest) points.push([dest.lat, dest.lng]);
 
-  const reset = () => {
+  const handleServiceTypeSelect = (serviceType: ServiceTypeId) => {
+    setSelectedServiceType(serviceType);
     setStage("search");
+  };
+
+  const reset = () => {
+    setStage("service");
+    setSelectedServiceType("standard");
     setPickup(null);
     setDest(null);
     setSelectedRide(null);
@@ -259,6 +280,8 @@ const RideHome = () => {
         distance={distance}
         eta={selectedRide?.etaMin}
         loading={rideState.loading}
+        serviceType={selectedServiceType}
+        fareInfo={fareInfo || undefined}
       />
 
       {/* Driver Searching Screen */}
@@ -298,8 +321,39 @@ const RideHome = () => {
 
       {/* Bottom panel - Main UI */}
       <div className="relative z-10 mt-auto">
+        {stage === "service" && (
+          <Card className="rounded-t-2xl rounded-b-none border-b-0 shadow-elevated p-4 space-y-4">
+            <div>
+              <h2 className="font-semibold text-lg mb-1">Pilih Layanan</h2>
+              <p className="text-xs text-muted-foreground">Pilih jenis layanan yang sesuai dengan kebutuhan Anda</p>
+            </div>
+
+            <ServiceTypeSelector
+              selectedServiceType={selectedServiceType}
+              onSelect={handleServiceTypeSelect}
+              userGender={user?.user_metadata?.gender as "male" | "female" | "other"}
+            />
+
+            <ServiceTypeInfo serviceTypeId={selectedServiceType} />
+          </Card>
+        )}
+
         {stage === "search" && (
           <Card className="rounded-t-2xl rounded-b-none border-b-0 shadow-elevated p-4 space-y-3">
+            {/* Service Type Badge */}
+            <button
+              onClick={() => setStage("service")}
+              className="flex items-center justify-between p-2 rounded-lg border bg-muted/50 hover:bg-muted text-left group"
+            >
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Layanan</p>
+                <p className="text-sm font-medium">{selectedServiceType === "standard" ? "Ride Standard" : selectedServiceType === "women" ? "Ride Women" : "Ride Car Premium"}</p>
+              </div>
+              <Badge variant="outline" className="text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                Ubah
+              </Badge>
+            </button>
+
             {geoError && (
               <div className="text-xs text-yellow-700 bg-yellow-50 p-2 rounded border border-yellow-200">
                 {geoError}
@@ -343,30 +397,51 @@ const RideHome = () => {
         {stage === "confirm" && (
           <Card className="rounded-t-2xl rounded-b-none border-b-0 shadow-elevated p-4">
             <div className="flex items-center justify-between mb-3">
-              <div>
+              <div className="flex-1">
                 <p className="text-xs text-muted-foreground">
                   {pickup?.name} → {dest?.name}
                 </p>
                 <p className="text-sm font-medium">{distance.toFixed(1)} km</p>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => setStage("search")}>
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-1">
+                <Button size="icon" variant="ghost" onClick={() => setStage("search")} title="Kembali">
+                  <X className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => setStage("service")} title="Ubah layanan">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+            {/* Service type display */}
+            <div className="mb-3 p-2 rounded-lg bg-muted/50 text-xs">
+              <span className="font-medium">
+                Layanan: {selectedServiceType === "standard" ? "Ride Standard" : selectedServiceType === "women" ? "Ride Women" : "Ride Car Premium"}
+              </span>
+              {fareInfo?.multiplier && fareInfo.multiplier > 1.0 && (
+                <span className="ml-2 text-accent font-semibold">
+                  +{Math.round((fareInfo.multiplier - 1) * 100)}%
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-2 max-h-[35vh] overflow-y-auto">
               {RIDE_OPTIONS.map((opt) => {
                 const Icon = iconMap[opt.icon];
-                const price = Math.round(opt.basePrice + opt.pricePerKm * distance);
+                const optionFare = calculateServiceTypeFare(
+                  opt.basePrice,
+                  opt.pricePerKm,
+                  distance,
+                  selectedServiceType
+                );
                 const active = selectedRide?.id === opt.id;
 
                 return (
                   <button
                     key={opt.id}
                     onClick={() => setSelectedRide(opt)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
-                      active ? "border-primary bg-primary-soft" : "border-border bg-card"
-                    }`}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${active ? "border-primary bg-primary-soft" : "border-border bg-card"
+                      }`}
                   >
                     <div className="h-12 w-12 rounded-lg bg-ride-soft text-ride flex items-center justify-center">
                       <Icon className="h-6 w-6" />
@@ -376,7 +451,12 @@ const RideHome = () => {
                       <p className="text-xs text-muted-foreground">{opt.description}</p>
                       <p className="text-xs text-muted-foreground">{opt.etaMin} menit</p>
                     </div>
-                    <p className="font-bold text-accent">Rp{price.toLocaleString("id-ID")}</p>
+                    <div className="text-right">
+                      <p className="font-bold text-accent">Rp{optionFare.totalFare.toLocaleString("id-ID")}</p>
+                      {optionFare.multiplier > 1.0 && (
+                        <p className="text-xs text-muted-foreground">+{Math.round((optionFare.multiplier - 1) * 100)}%</p>
+                      )}
+                    </div>
                   </button>
                 );
               })}
