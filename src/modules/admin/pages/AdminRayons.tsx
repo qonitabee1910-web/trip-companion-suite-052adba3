@@ -37,7 +37,7 @@ import {
   Plus, Edit, Trash2, X, RotateCcw, Save, MapPin, Clock, Sparkles,
   ArrowUp, ArrowDown, Route, Calculator, Crosshair, Maximize2,
 } from "lucide-react";
-import { PickupCoordinateMap } from "../components/PickupCoordinateMap";
+import { PickupCoordinateMap, RoutingSummary } from "../components/PickupCoordinateMap";
 import {
   getRayons,
   saveRayons,
@@ -775,15 +775,25 @@ const AdminRayons = () => {
                     </TableBody>
                   </Table>
                 </div>
-                <div className="flex items-center justify-between mt-2 px-1 text-xs">
+                <div className="flex items-center justify-between mt-2 px-1 text-xs gap-4 flex-wrap">
                   <span className="text-muted-foreground">
                     {editing.data.pickupPoints.filter((p) => p.code !== "DEST").length} titik jemput + 1 tujuan ·{" "}
                     {editing.data.pickupPoints.filter((p) => typeof p.lat === "number" && typeof p.lng === "number").length}/
                     {editing.data.pickupPoints.length} berkoordinat
                   </span>
-                  <span className="font-semibold">
-                    Total jarak: {editTotalKm.toLocaleString("id-ID", { maximumFractionDigits: 2 })} km
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold">
+                      Jarak garis lurus: {editTotalKm.toLocaleString("id-ID", { maximumFractionDigits: 2 })} km
+                    </span>
+                    {editing && (
+                      <RoutingSummary
+                        points={editing.data.pickupPoints}
+                        pointsWithCoords={editing.data.pickupPoints
+                          .map((p, idx) => ({ p, idx }))
+                          .filter(({ p }) => typeof p.lat === "number" && typeof p.lng === "number")}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-4 mb-2 flex items-center justify-between gap-2 flex-wrap">

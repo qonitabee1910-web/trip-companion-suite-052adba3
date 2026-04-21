@@ -4,9 +4,10 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, useMapEvents 
 import iconUrl from "leaflet/dist/images/marker-icon.png";
 import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-import { Search, X, Loader2 } from "lucide-react";
+import { Search, X, Loader2, Navigation } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import type { PickupPoint } from "@/modules/shuttle/data/rayons";
+import { getRoutingBetweenPoints, formatDistance, formatDuration } from "./RoutingService";
 
 const DefaultIcon = L.icon({
   iconUrl,
@@ -44,8 +45,8 @@ function buildIcon(label: string, isDest: boolean, isActive: boolean): L.DivIcon
   const bg = isDest
     ? "hsl(var(--accent))"
     : isActive
-    ? "hsl(var(--primary))"
-    : "hsl(var(--card))";
+      ? "hsl(var(--primary))"
+      : "hsl(var(--card))";
   const fg = isDest || isActive ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))";
   const border = isActive ? "hsl(var(--primary))" : "hsl(var(--border))";
   const ring = isActive
@@ -94,6 +95,122 @@ function PanController({ target }: { target: [number, number] | null }) {
     map.flyTo(target, Math.max(map.getZoom(), 15), { duration: 0.6 });
   }, [target]);
   return null;
+}
+
+function RoutingDisplay({
+  points,
+  pointsWithCoords,
+}: {
+  points: PickupPoint[];
+  pointsWithCoords: Array<{ p: PickupPoint; idx: number }>;
+}) {
+  const [routing, setRouting] = useState<any>(null);
+  const [loadingRoute, setLoadingRoute] = useState(false);
+
+  useEffect(() => {
+    if (pointsWithCoords.length < 2) {
+      setRouting(null);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      setLoadingRoute(true);
+      try {
+        const coordPoints = pointsWithCoords.map((x) => ({
+          lat: x.p.lat as number,
+          lng: x.p.lng as number,
+        }));
+        const result = await getRoutingBetweenPoints(coordPoints);
+        setRouting(result);
+      } catch (error) {
+        console.error("Routing fetch error:", error);
+        setRouting(null);
+      } finally {
+        setLoadingRoute(false);
+      }
+    };
+
+    const timer = setTimeout(fetchRoute, 800); // debounce
+    return () => clearTimeout(timer);
+  }, [pointsWithCoords]);
+
+  if (!routing) return null;
+
+  return (
+    <>
+      {routing.segments.map((seg, idx) => (
+        <Polyline
+          key={`route-${idx}`}
+          positions={seg.coordinates}
+          pathOptions={{
+            color: "hsl(var(--primary))",
+            weight: 3,
+            opacity: 0.7,
+            dashArray: "5, 5",
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+export function RoutingSummary({
+  points,
+  pointsWithCoords,
+}: {
+  points: PickupPoint[];
+  pointsWithCoords: Array<{ p: PickupPoint; idx: number }>;
+}) {
+  const [routing, setRouting] = useState<any>(null);
+  const [loadingRoute, setLoadingRoute] = useState(false);
+
+  useEffect(() => {
+    if (pointsWithCoords.length < 2) {
+      setRouting(null);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      setLoadingRoute(true);
+      try {
+        const coordPoints = pointsWithCoords.map((x) => ({
+          lat: x.p.lat as number,
+          lng: x.p.lng as number,
+        }));
+        const result = await getRoutingBetweenPoints(coordPoints);
+        setRouting(result);
+      } catch (error) {
+        console.error("Routing fetch error:", error);
+        setRouting(null);
+      } finally {
+        setLoadingRoute(false);
+      }
+    };
+
+    const timer = setTimeout(fetchRoute, 800);
+    return () => clearTimeout(timer);
+  }, [pointsWithCoords]);
+
+  if (!routing) {
+    return loadingRoute ? (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span>Menghitung rute...</span>
+      </div>
+    ) : null;
+  }
+
+  return (
+    <div className="flex items-center gap-4 text-xs">
+      <div className="flex items-center gap-1">
+        <Navigation className="h-3.5 w-3.5 text-primary" />
+        <span className="font-semibold">{formatDistance(routing.totalDistance)}</span>
+      </div>
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <span>±{formatDuration(routing.totalDuration)}</span>
+      </div>
+    </div>
+  );
 }
 
 export const PickupCoordinateMap = ({
@@ -298,12 +415,19 @@ export const PickupCoordinateMap = ({
           <ClickCapture activeCode={activeCode} onCapture={onCapture} />
           <FitBoundsBtn points={polyline} signal={fitSignal} />
           <PanController target={panTarget} />
+
+          {/* Static polyline connecting points */}
           {polyline.length >= 2 && (
             <Polyline
               positions={polyline}
-              pathOptions={{ color: "hsl(217 91% 60%)", weight: 4, opacity: 0.85 }}
+              pathOptions={{ color: "hsl(var(--card))", weight: 2, opacity: 0.4 }}
             />
           )}
+
+          {/* Routing polylines with actual road network */}
+          <RoutingDisplay points={points} pointsWithCoords={withCoords} />
+
+          {/* Markers */}
           {withCoords.map(({ p, idx }) => {
             const isDest = p.code === "DEST";
             const realIdx = points.slice(0, idx).filter((x) => x.code !== "DEST").length;
