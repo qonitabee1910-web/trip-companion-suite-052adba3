@@ -7,7 +7,6 @@
  */
 
 import {
-  calcFareBreakdown,
   getVehicleTierPrice,
   type ServiceConfig,
   type VehicleType,
@@ -15,6 +14,7 @@ import {
   DEFAULT_FARE_PER_KM,
 } from "../data/services";
 import { getRayon, getRemainingDistanceM, getTotalDistanceM, type Rayon } from "../data/rayons";
+import { calcFareBreakdownCompat } from "./migrationHelper";
 
 export interface PickupFareInfo {
   code: string;
@@ -23,6 +23,7 @@ export interface PickupFareInfo {
   distanceKm: number;
   fareBreakdown: FareBreakdown;
   unitPrice: number;
+  routingSource?: string;
 }
 
 /**
@@ -30,18 +31,18 @@ export interface PickupFareInfo {
  * If perPickupFare is enabled, calculates distance from that point.
  * Otherwise, returns full route fare.
  */
-export function getPickupPointFare(
+export async function getPickupPointFare(
   pickupCode: string,
   vehicle: VehicleType | null | undefined,
   service: ServiceConfig,
   rayon?: Rayon | null,
-): PickupFareInfo | null {
+): Promise<PickupFareInfo | null> {
   if (!rayon) return null;
 
   const pickup = rayon.pickupPoints?.find((p) => p.code === pickupCode);
   if (!pickup) return null;
 
-  const breakdown = calcFareBreakdown(vehicle, service, rayon, pickupCode);
+  const breakdown = await calcFareBreakdownCompat(vehicle, service, rayon, pickupCode);
 
   return {
     code: pickup.code,
@@ -50,6 +51,7 @@ export function getPickupPointFare(
     distanceKm: breakdown.distanceKm,
     fareBreakdown: breakdown,
     unitPrice: breakdown.total,
+    routingSource: breakdown.routingSource,
   };
 }
 
@@ -57,32 +59,34 @@ export function getPickupPointFare(
  * Calculate all pickup point fares for a rayon.
  * Useful for displaying a fare matrix.
  */
-export function getAllPickupPointFares(
+export async function getAllPickupPointFares(
   vehicle: VehicleType | null | undefined,
   service: ServiceConfig,
   rayon?: Rayon | null,
-): PickupFareInfo[] {
+): Promise<PickupFareInfo[]> {
   if (!rayon) return [];
 
-  return (rayon.pickupPoints || [])
+  const promises = (rayon.pickupPoints || [])
     .filter((p) => p.code !== "DEST")
-    .map((p) => getPickupPointFare(p.code, vehicle, service, rayon))
-    .filter((info): info is PickupFareInfo => info !== null);
+    .map((p) => getPickupPointFare(p.code, vehicle, service, rayon));
+
+  const results = await Promise.all(promises);
+  return results.filter((info): info is PickupFareInfo => info !== null);
 }
 
 /**
  * Get fare difference between two pickup points.
  * Useful for showing price reduction/increase when changing pickup.
  */
-export function getFareDifference(
+export async function getFareDifference(
   fromCode: string,
   toCode: string,
   vehicle: VehicleType | null | undefined,
   service: ServiceConfig,
   rayon?: Rayon | null,
-): number | null {
-  const fromFare = getPickupPointFare(fromCode, vehicle, service, rayon);
-  const toFare = getPickupPointFare(toCode, vehicle, service, rayon);
+): Promise<number | null> {
+  const fromFare = await getPickupPointFare(fromCode, vehicle, service, rayon);
+  const toFare = await getPickupPointFare(toCode, vehicle, service, rayon);
 
   if (!fromFare || !toFare) return null;
 

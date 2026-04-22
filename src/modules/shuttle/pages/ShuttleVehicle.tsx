@@ -12,6 +12,7 @@ import { getAvailableCount } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
 import { PickupPointFareSummary } from "../components/PickupPointFareSummary";
+import { ServicePriceLabel } from "../components/ServicePriceLabel";
 import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import hiaceImg from "@/assets/shuttle/base-hiace.png";
 
@@ -69,7 +70,6 @@ const ShuttleVehicle = () => {
 
         {VEHICLE_TYPES.map((v) => {
           const Icon = vehicleIcon[v.id];
-          const total = calcPrice(v, service, rayon, pickupCode) * pax;
           const capacity = getVehicleSeatCount(v.id, service.tier);
           const seatsLeft = getAvailableCount(
             { date, time, rayonId, vehicleId: v.id, tier: service.tier },
@@ -95,10 +95,15 @@ const ShuttleVehicle = () => {
                       <h3 className="font-bold truncate">{v.label}</h3>
                       <p className="text-xs text-muted-foreground truncate">{v.vehicleName}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-[10px] text-muted-foreground">total {pax} pax</p>
-                      <p className="font-bold text-accent">Rp{total.toLocaleString("id-ID")}</p>
-                    </div>
+                    <ServicePriceLabel
+                      vehicle={v}
+                      service={service}
+                      rayon={rayon}
+                      pickupCode={pickupCode}
+                      pax={pax}
+                      showLabel
+                      className="font-bold text-accent"
+                    />
                   </div>
 
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{v.description}</p>

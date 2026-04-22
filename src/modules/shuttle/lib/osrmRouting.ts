@@ -9,12 +9,14 @@ export interface OSRMRoute {
   distance: number; // meters
   duration: number; // seconds
   geometry?: string; // encoded polyline (optional)
+  source?: "osrm" | "fallback";
 }
 
 export interface OSRMMatrix {
   code: string; // "Ok" or error
   distances: number[][]; // matrix of distances in meters
   durations: number[][]; // matrix of durations in seconds
+  source: "osrm" | "fallback";
 }
 
 /**
@@ -64,6 +66,11 @@ export async function getRouteDistance(
   toLat: number,
   toLng: number,
 ): Promise<OSRMRoute> {
+  // If coordinates are same, distance is 0
+  if (fromLat === toLat && fromLng === toLng) {
+    return { distance: 0, duration: 0 };
+  }
+
   const cacheKey = getCacheKey(fromLat, fromLng, toLat, toLng);
 
   // Check cache
@@ -85,8 +92,8 @@ export async function getRouteDistance(
     url.searchParams.set("overview", "false"); // Don't need geometry for now
 
     const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`OSRM API error: ${response.statusText}`);
+    if (!response || !response.ok) {
+      throw new Error(`OSRM API error: ${response?.statusText ?? "No response"}`);
     }
 
     const data = await response.json();
@@ -95,9 +102,10 @@ export async function getRouteDistance(
     }
 
     const route = data.routes[0];
-    const result = {
+    const result: OSRMRoute = {
       distance: Math.round(route.distance),
       duration: Math.round(route.duration),
+      source: "osrm",
     };
 
     // Cache result
@@ -109,8 +117,8 @@ export async function getRouteDistance(
     return result;
   } catch (error) {
     console.error("OSRM routing error:", error);
-    // Fallback ke simple distance calculation jika API fails
-    return getSimpleDistance(fromLat, fromLng, toLat, toLng);
+    // Rethrow to let caller handle legacy fallback
+    throw error;
   }
 }
 
@@ -122,8 +130,13 @@ export async function getRouteDistance(
  */
 export async function getRouteMatrix(
   coordinates: Array<[number, number]>,
-): Promise<number[][]> {
-  if (coordinates.length < 2) return [];
+): Promise<OSRMMatrix> {
+  if (coordinates.length === 0) {
+    return { code: "Ok", distances: [], durations: [], source: "osrm" };
+  }
+  if (coordinates.length === 1) {
+    return { code: "Ok", distances: [[0]], durations: [[0]], source: "osrm" };
+  }
 
   const cacheKey = `matrix_${coordinates.map(([lat, lng]) => `${lat.toFixed(4)},${lng.toFixed(4)}`).join("|")}`;
 
@@ -134,8 +147,10 @@ export async function getRouteMatrix(
     url.searchParams.set("coordinates", coordStr);
 
     const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`OSRM Matrix API error: ${response.statusText}`);
+    if (!response || !response.ok) {
+      throw new Error(
+        `OSRM Matrix API error: ${response?.statusText ?? "No response"}`,
+      );
     }
 
     const data: OSRMMatrix = await response.json();
@@ -143,11 +158,11 @@ export async function getRouteMatrix(
       throw new Error(`OSRM Matrix error: ${data.code}`);
     }
 
-    return data.distances;
+    return { ...data, source: "osrm" };
   } catch (error) {
     console.error("OSRM matrix error:", error);
-    // Fallback ke simple distance matrix
-    return getSimpleDistanceMatrix(coordinates);
+    // Rethrow to let the caller handle fallback to legacy distances
+    throw error;
   }
 }
 
@@ -155,7 +170,7 @@ export async function getRouteMatrix(
  * Haversine formula untuk fallback simple distance calculation
  * Hanya untuk emergency, bukan hasil routing yang akurat
  */
-function getSimpleDistance(
+export function getSimpleDistance(
   fromLat: number,
   fromLng: number,
   toLat: number,
@@ -224,6 +239,9 @@ export async function updateRayonDistances(
     distanceToNext: number;
     lat?: number;
     lng?: number;
+    routingDistance?: number;
+    routingDuration?: number;
+    routingUpdatedAt?: number;
   }>
 > {
   const validPoints = pickupPoints.filter(
@@ -239,14 +257,22 @@ export async function updateRayonDistances(
   const coordinates = validPoints.map(
     (p) => [p.lat!, p.lng!] as [number, number],
   );
-  const distances = await getRouteMatrix(coordinates);
+  const matrixResult = await getRouteMatrix(coordinates);
+  const distances = matrixResult.distances;
 
-  // Map distances to distanceToNext
-  const updated = validPoints.map((point, idx) => ({
-    ...point,
-    distanceToNext:
-      idx < validPoints.length - 1 ? distances[idx][idx + 1] || 0 : 0,
-  }));
+  // Map distances to distanceToNext and routing fields
+  const updated = validPoints.map((point, idx) => {
+    const isLast = idx === validPoints.length - 1;
+    const distanceToNext = isLast ? 0 : distances[idx][idx + 1] || 0;
+    
+    return {
+      ...point,
+      distanceToNext,
+      routingDistance: distanceToNext,
+      routingDuration: isLast ? 0 : Math.round(distanceToNext / 11.1), // rough estimate from matrix
+      routingUpdatedAt: Date.now(),
+    };
+  });
 
   return updated;
 }

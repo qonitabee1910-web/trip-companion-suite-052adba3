@@ -3,10 +3,13 @@
  * Shows distance and fare breakdown with comparison to first pickup
  */
 
+import { useState, useEffect } from "react";
 import { MapPin } from "lucide-react";
-import { getRemainingDistanceM, getTotalDistanceM, type Rayon } from "../data/rayons";
+import { getTotalDistanceM, type Rayon } from "../data/rayons";
 import { calcFareBreakdown, type ServiceConfig, type VehicleType } from "../data/services";
+import { calcFareBreakdownCompat } from "../lib/migrationHelper";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PickupPointFareSummaryProps {
   vehicle: VehicleType | null | undefined;
@@ -27,25 +30,59 @@ export const PickupPointFareSummary = ({
   compact = false,
   className,
 }: PickupPointFareSummaryProps) => {
+  const [breakdown, setBreakdown] = useState<any>(null);
+  const [firstBreakdown, setFirstBreakdown] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const firstPickup = rayon?.pickupPoints?.find((p) => p.code !== "DEST");
+
+  useEffect(() => {
+    if (!rayon || !pickupCode) return;
+
+    setLoading(true);
+    const p1 = calcFareBreakdownCompat(vehicle, service, rayon, pickupCode);
+
+    const p2 =
+      firstPickup && firstPickup.code !== pickupCode
+        ? calcFareBreakdownCompat(vehicle, service, rayon, firstPickup.code)
+        : Promise.resolve(null);
+
+    Promise.all([p1, p2])
+      .then(([bd, firstBd]) => {
+        setBreakdown(bd);
+        setFirstBreakdown(firstBd);
+      })
+      .catch((err) => {
+        console.error("Fare calculation error:", err);
+        // Fallback to sync calculation if everything fails
+        try {
+          setBreakdown(calcFareBreakdown(vehicle, service, rayon, pickupCode));
+        } catch (e) {}
+      })
+      .finally(() => setLoading(false));
+  }, [vehicle, service, rayon, pickupCode]);
+
   if (!rayon || !pickupCode) return null;
 
   const pickup = rayon.pickupPoints?.find((p) => p.code === pickupCode);
   if (!pickup) return null;
 
-  const breakdown = calcFareBreakdown(vehicle, service, rayon, pickupCode);
+  if (loading) {
+    return (
+      <div className={cn("space-y-2 p-3 border rounded-lg", className)}>
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
+    );
+  }
+
+  if (!breakdown) return null;
 
   // Only show if perPickupFare is enabled OR distance differs from total
   const totalDist = getTotalDistanceM(rayon);
   if (!rayon.perPickupFare && breakdown.distanceM === totalDist) {
     return null;
   }
-
-  // Calculate fare from first pickup for comparison
-  const firstPickup = rayon.pickupPoints?.find((p) => p.code !== "DEST");
-  const firstBreakdown =
-    firstPickup && firstPickup.code !== pickupCode
-      ? calcFareBreakdown(vehicle, service, rayon, firstPickup.code)
-      : null;
 
   const fareDiff =
     firstBreakdown && breakdown.total !== firstBreakdown.total
@@ -97,6 +134,11 @@ export const PickupPointFareSummary = ({
       <div className="flex items-center gap-2">
         <MapPin className="h-4 w-4 text-primary" />
         <span className="font-semibold">Titik Jemput: {pickup.name}</span>
+        {breakdown.routingSource === "osrm" && (
+          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+            OSRM
+          </span>
+        )}
         {rayon.perPickupFare && (
           <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
             Per Titik

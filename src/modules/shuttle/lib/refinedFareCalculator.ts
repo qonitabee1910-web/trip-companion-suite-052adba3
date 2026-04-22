@@ -12,6 +12,7 @@
 import {
   getRouteDistance,
   getRouteMatrix,
+  getSimpleDistance,
   type OSRMRoute,
 } from "./osrmRouting";
 import type {
@@ -79,13 +80,34 @@ export async function getAccurateDistance(
         toPoint.lat,
         toPoint.lng,
       );
+      // If OSRM returned a real route, use it
       return {
         distanceM: route.distance,
         durationS: route.duration,
         source: "osrm",
       };
     } catch (error) {
-      console.warn(`OSRM routing failed: ${error}`);
+      console.warn(`OSRM routing failed for point to point: ${error}`);
+      // Fallback ke legacy if available
+      if (fromPoint.distanceToNext && fromPoint.distanceToNext > 0) {
+        return {
+          distanceM: fromPoint.distanceToNext,
+          durationS: fromPoint.distanceToNext / 11.1,
+          source: "fallback",
+        };
+      }
+      // If legacy is 0, use simple Haversine calculation
+      const fallback = getSimpleDistance(
+        fromPoint.lat,
+        fromPoint.lng,
+        toPoint.lat,
+        toPoint.lng,
+      );
+      return {
+        distanceM: fallback.distance,
+        durationS: fallback.duration,
+        source: "fallback",
+      };
     }
   }
 
@@ -107,6 +129,7 @@ export async function calculateRayonDistance(
   totalDistanceM: number;
   estimatedMinutes: number;
   pointsWithDistance: RefinedPickupPoint[];
+  source: "osrm" | "fallback";
 }> {
   const points = rayon.pickupPoints || [];
   if (points.length < 2) {
@@ -114,6 +137,7 @@ export async function calculateRayonDistance(
       totalDistanceM: 0,
       estimatedMinutes: 0,
       pointsWithDistance: points,
+      source: "fallback",
     };
   }
 
@@ -137,11 +161,13 @@ export async function calculateRayonDistance(
       ),
       estimatedMinutes: rayon.estimateMin || 0,
       pointsWithDistance: points,
+      source: "fallback",
     };
   }
 
   try {
-    const distances = await getRouteMatrix(coordinates);
+    const matrixResult = await getRouteMatrix(coordinates);
+    const distances = matrixResult.distances;
 
     // Update distances dan map ke original points
     let totalDistance = 0;
@@ -179,18 +205,22 @@ export async function calculateRayonDistance(
       totalDistanceM: totalDistance,
       estimatedMinutes: Math.round(totalDuration / 60),
       pointsWithDistance: updatedPoints,
+      source: matrixResult.source,
     };
   } catch (error) {
     console.error("Failed to calculate rayon distance:", error);
 
-    // Fallback ke stored values
+    // Fallback ke stored values (Legacy method)
+    const totalDistanceM = points.reduce(
+      (sum, p) => sum + (p.distanceToNext || 0),
+      0,
+    );
+
     return {
-      totalDistanceM: points.reduce(
-        (sum, p) => sum + (p.distanceToNext || 0),
-        0,
-      ),
+      totalDistanceM,
       estimatedMinutes: rayon.estimateMin || 0,
       pointsWithDistance: points,
+      source: "fallback",
     };
   }
 }
@@ -201,7 +231,7 @@ export async function calculateRayonDistance(
 export async function getRemainingDistance(
   rayon: RefinedRayon,
   fromCode: string,
-): Promise<{ distanceM: number; durationS: number }> {
+): Promise<{ distanceM: number; durationS: number; source: "osrm" | "cached" | "fallback" }> {
   const points = rayon.pickupPoints || [];
   const fromIdx = points.findIndex((p) => p.code === fromCode);
 
@@ -211,12 +241,14 @@ export async function getRemainingDistance(
     return {
       distanceM: result.totalDistanceM,
       durationS: result.estimatedMinutes * 60,
+      source: result.source,
     };
   }
 
   // Sum distances dari pickup point sampai akhir
   let totalDistance = 0;
   let totalDuration = 0;
+  let source: "osrm" | "cached" | "fallback" = "cached"; // start with optimistic cached
 
   for (let i = fromIdx; i < points.length - 1; i++) {
     const accurateDistance = await getAccurateDistance(
@@ -226,9 +258,13 @@ export async function getRemainingDistance(
     );
     totalDistance += accurateDistance.distanceM;
     totalDuration += accurateDistance.durationS;
+    
+    // If any segment falls back, the whole thing is degraded
+    if (accurateDistance.source === "fallback") source = "fallback";
+    else if (accurateDistance.source === "osrm" && source !== "fallback") source = "osrm";
   }
 
-  return { distanceM: totalDistance, durationS: totalDuration };
+  return { distanceM: totalDistance, durationS: totalDuration, source };
 }
 
 /**
@@ -267,13 +303,13 @@ export async function calcEnhancedFareBreakdown(
     const remaining = await getRemainingDistance(rayon, pickupCode);
     distanceM = remaining.distanceM;
     durationS = remaining.durationS;
-    routingSource = "osrm"; // at least attempted
+    routingSource = remaining.source;
   } else if (useOSRM) {
     // Calculate total rayon distance
     const result = await calculateRayonDistance(rayon);
     distanceM = result.totalDistanceM;
     durationS = result.estimatedMinutes * 60;
-    routingSource = "osrm";
+    routingSource = result.source;
   } else {
     // Legacy fallback
     distanceM =
@@ -281,6 +317,7 @@ export async function calcEnhancedFareBreakdown(
         ?.slice(0, -1)
         .reduce((sum, p) => sum + (p.distanceToNext || 0), 0) || 0;
     durationS = distanceM / 11.1;
+    routingSource = "fallback";
   }
 
   const distanceKm = distanceM / 1000;

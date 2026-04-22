@@ -27,7 +27,7 @@ import {
  * Feature flag untuk gradual rollout OSRM
  * Set via environment variable atau config
  */
-export const OSRM_ENABLED = import.meta.env.VITE_OSRM_ENABLED === "true";
+export const OSRM_ENABLED = import.meta.env.VITE_OSRM_ENABLED !== "false"; // Default to true if not explicitly disabled
 export const OSRM_FALLBACK = import.meta.env.VITE_OSRM_FALLBACK !== "false"; // fallback on error
 
 /**
@@ -64,6 +64,19 @@ export async function calcFareBreakdownCompat(
     }
     throw error;
   }
+}
+
+/**
+ * Kompatibel wrapper untuk calcPrice()
+ */
+export async function calcPriceCompat(
+  vehicle: VehicleType,
+  service: ServiceConfig,
+  rayon?: Rayon | null,
+  pickupCode?: string,
+): Promise<number> {
+  const bd = await calcFareBreakdownCompat(vehicle, service, rayon, pickupCode);
+  return bd.total;
 }
 
 /**

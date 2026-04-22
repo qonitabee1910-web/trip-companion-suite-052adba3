@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format, startOfToday } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { getRayon, getDestination, getContent, getTotalDistanceM, getShiftedSchedule } from "../data/rayons";
 import { getDepartTimes, getServicesAll } from "../data/repository";
+import { calculateRayonDistance } from "../lib/refinedFareCalculator";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { RayonRouteMap } from "../components/RayonRouteMap";
 import { MapPin, Plane, Users, Minus, Plus, Clock, Calendar as CalendarIcon, Route } from "lucide-react";
@@ -29,6 +30,29 @@ const ShuttleRayon = () => {
   const [time, setTime] = useState(DEPART_TIMES[1] ?? DEPART_TIMES[0] ?? "06:00");
   const [pax, setPax] = useState(1);
 
+  // NEW: Async distance calculation
+  const [distanceInfo, setDistanceInfo] = useState<{
+    distanceKm: number;
+    durationMin: number;
+  }>({
+    distanceKm: getTotalDistanceM(rayon as any) / 1000,
+    durationMin: rayon?.estimateMin || 0,
+  });
+
+  useEffect(() => {
+    if (!rayon) return;
+    calculateRayonDistance(rayon as any)
+      .then((res) => {
+        setDistanceInfo({
+          distanceKm: res.totalDistanceM / 1000,
+          durationMin: res.estimatedMinutes,
+        });
+      })
+      .catch((err) => {
+        console.warn("Could not calculate accurate rayon distance:", err);
+      });
+  }, [rayon]);
+
   if (!rayon) {
     return (
       <ResponsiveLayout mobileTitle="Rayon" mobileBack="/shuttle">
@@ -37,7 +61,8 @@ const ShuttleRayon = () => {
     );
   }
 
-  const totalKm = getTotalDistanceM(rayon) / 1000;
+  const totalKm = distanceInfo.distanceKm;
+  const estimateMin = distanceInfo.durationMin;
   const shifted = getShiftedSchedule(rayon, time);
   const arriveTime = shifted.get("DEST") || rayon.pickupPoints[rayon.pickupPoints.length - 1]?.time || "";
 
@@ -84,7 +109,7 @@ const ShuttleRayon = () => {
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" /> ±{rayon.estimateMin} menit
+              <Clock className="h-3.5 w-3.5" /> ±{estimateMin} menit
             </span>
             <span className="flex items-center gap-1">
               <Route className="h-3.5 w-3.5" /> ±{totalKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km

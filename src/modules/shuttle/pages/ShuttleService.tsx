@@ -11,6 +11,7 @@ import { getRayon, getDestination } from "../data/rayons";
 import { getServicesAll, getVehicleTypesAll } from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
+import { ServicePriceLabel } from "../components/ServicePriceLabel";
 import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 
 const tierIcon = {
@@ -80,7 +81,6 @@ const ShuttleService = () => {
             },
             undefined,
           );
-          const startPrice = cheapestForTier ? calcPrice(cheapestForTier, s, rayon, pickupCode) : 0;
           const isExec = s.tier === "executive";
           return (
             <Card
@@ -107,7 +107,13 @@ const ShuttleService = () => {
                 <div className="text-right shrink-0 flex items-start gap-1">
                   <div>
                     <p className="text-[10px] text-muted-foreground">mulai</p>
-                    <p className="font-bold text-accent">Rp{startPrice.toLocaleString("id-ID")}</p>
+                    <ServicePriceLabel
+                      vehicle={cheapestForTier}
+                      service={s}
+                      rayon={rayon}
+                      pickupCode={pickupCode}
+                      className="font-bold text-accent"
+                    />
                   </div>
                   {cheapestForTier && rayon && (
                     <Popover>

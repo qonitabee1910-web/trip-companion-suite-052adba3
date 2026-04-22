@@ -11,8 +11,34 @@ import type { PickupPoint } from "../../data/rayons";
 describe("osrmRouting", () => {
   beforeAll(() => {
     clearRouteCache();
-    // Mock fetch if testing without real OSRM
-    vi.stubGlobal("fetch", vi.fn());
+    // Proper mock for fetch
+    vi.stubGlobal("fetch", vi.fn(async (urlStr: string) => {
+      const url = new URL(urlStr);
+      if (url.pathname.includes("/route/v1/driving")) {
+        return {
+          ok: true,
+          json: async () => ({
+            code: "Ok",
+            routes: [{ distance: 1000, duration: 60 }],
+          }),
+        };
+      }
+      if (url.pathname.includes("/table/v1/driving")) {
+        const coords = url.searchParams.get("coordinates")?.split(";") || [];
+        const n = coords.length;
+        const distances = Array(n).fill(0).map((_, i) => 
+          Array(n).fill(0).map((_, j) => (i === j ? 0 : 1000))
+        );
+        return {
+          ok: true,
+          json: async () => ({
+            code: "Ok",
+            distances,
+          }),
+        };
+      }
+      return { ok: false, statusText: "Not Found" };
+    }));
   });
 
   afterAll(() => {

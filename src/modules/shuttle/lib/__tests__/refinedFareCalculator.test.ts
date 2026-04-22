@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   calcEnhancedFareBreakdown,
   calculateRayonDistance,
@@ -21,6 +21,39 @@ describe("refinedFareCalculator", () => {
     testRayon = SEED_RAYONS_PYUGO[0]; // Rayon A
     testVehicle = VEHICLE_TYPES[0]; // Default vehicle
     testService = SERVICES[0]; // Default service
+
+    // Proper mock for fetch
+    vi.stubGlobal("fetch", vi.fn(async (urlStr: string) => {
+      const url = new URL(urlStr);
+      if (url.pathname.includes("/route/v1/driving")) {
+        return {
+          ok: true,
+          json: async () => ({
+            code: "Ok",
+            routes: [{ distance: 1000, duration: 60 }],
+          }),
+        };
+      }
+      if (url.pathname.includes("/table/v1/driving")) {
+        const coords = url.searchParams.get("coordinates")?.split(";") || [];
+        const n = coords.length;
+        const distances = Array(n).fill(0).map((_, i) => 
+          Array(n).fill(0).map((_, j) => (i === j ? 0 : 1000))
+        );
+        return {
+          ok: true,
+          json: async () => ({
+            code: "Ok",
+            distances,
+          }),
+        };
+      }
+      return { ok: false, statusText: "Not Found" };
+    }));
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
   });
 
   describe("calcEnhancedFareBreakdown", () => {
