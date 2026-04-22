@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
 import { Route } from "lucide-react";
 import { calcFareBreakdown, type ServiceConfig, type VehicleType } from "../data/services";
+import { calcFareBreakdownCompat } from "../lib/migrationHelper";
 import type { Rayon } from "../data/rayons";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface FareBreakdownCardProps {
   vehicle: VehicleType | null | undefined;
@@ -25,7 +28,49 @@ export const FareBreakdownCard = ({
   compact = false,
   className,
 }: FareBreakdownCardProps) => {
-  const breakdown = calcFareBreakdown(vehicle, service, rayon, pickupCode);
+  const [breakdown, setBreakdown] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load fare breakdown (with OSRM support via feature flag)
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+
+    calcFareBreakdownCompat(vehicle, service, rayon, pickupCode)
+      .then(setBreakdown)
+      .catch((err) => {
+        console.error("Fare calculation error:", err);
+        setError(err.message);
+        // Fallback to legacy calculation
+        try {
+          const legacy = calcFareBreakdown(vehicle, service, rayon, pickupCode);
+          setBreakdown(legacy);
+        } catch (e) {
+          setError("Failed to calculate fare");
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [vehicle, service, rayon, pickupCode]);
+
+  if (loading) {
+    return (
+      <div className={cn("space-y-2", className)}>
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    );
+  }
+
+  if (error || !breakdown) {
+    return (
+      <div className={cn("text-sm text-red-600", className)}>
+        {error || "Tidak bisa menghitung tarif"}
+      </div>
+    );
+  }
+
   const unitPrice = breakdown.total;
   const total = unitPrice * Math.max(1, pax);
 
@@ -48,6 +93,15 @@ export const FareBreakdownCard = ({
             <span>{fmt(breakdown.basePrice)}</span>
           </div>
         )}
+
+        {/* NEW: Show time estimate if available */}
+        {breakdown.estimatedDurationMin && (
+          <div className="flex justify-between text-muted-foreground">
+            <span>Durasi</span>
+            <span>±{breakdown.estimatedDurationMin} min</span>
+          </div>
+        )}
+
         <div className="flex justify-between pt-1 border-t font-semibold">
           <span>Per kursi</span>
           <span className="text-accent">{fmt(unitPrice)}</span>
@@ -86,6 +140,15 @@ export const FareBreakdownCard = ({
           <span>+{fmt(breakdown.surcharge)}</span>
         </div>
       )}
+
+      {/* NEW: Show time estimate if available */}
+      {breakdown.estimatedDurationMin && (
+        <div className="flex justify-between text-muted-foreground">
+          <span>Estimasi Durasi</span>
+          <span>±{breakdown.estimatedDurationMin} menit</span>
+        </div>
+      )}
+
       <div className="flex justify-between pt-1 border-t">
         <span className="text-muted-foreground">Per kursi</span>
         <span className="font-medium">{fmt(unitPrice)}</span>
@@ -94,6 +157,13 @@ export const FareBreakdownCard = ({
         <div className="flex justify-between">
           <span className="text-muted-foreground">× {pax} pax</span>
           <span className="font-bold text-accent">{fmt(total)}</span>
+        </div>
+      )}
+
+      {/* NEW: Debug info for development */}
+      {process.env.NODE_ENV === "development" && breakdown.routingSource && (
+        <div className="text-[10px] text-muted-foreground/50 border-t pt-1 mt-1">
+          Sumber: {breakdown.routingSource}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { format, parseISO, isValid } from "date-fns";
+import { format, parseISO, isValid, parse, addMinutes } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import { PaymentMethodPicker } from "../components/PaymentMethodPicker";
 import { TicketCard } from "../components/TicketCard";
 import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import { getService, getVehicleType, calcFareBreakdown, getVehicleSeatCount, SERVICES, VEHICLE_TYPES } from "../data/services";
+import { calcFareBreakdownCompat } from "../lib/migrationHelper";
 import { getRayon, getDestination } from "../data/rayons";
 import { addBooking } from "../data/repository";
 import { getOccupiedSeats } from "../data/inventory";
@@ -70,8 +71,44 @@ const ShuttleBooking = () => {
   const [confirmedBooking, setConfirmedBooking] = useState<ShuttleBooking | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "png" | null>(null);
 
-  const breakdown = calcFareBreakdown(vehicle, service, rayon, pickupCode);
-  const unitPrice = breakdown.total;
+  // NEW: Async fare calculation state
+  const [breakdown, setBreakdown] = useState<any>(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [estimatedArrival, setEstimatedArrival] = useState<string | null>(null);
+
+  // Load breakdown asynchronously (with OSRM support via feature flag)
+  useEffect(() => {
+    setBreakdownLoading(true);
+    calcFareBreakdownCompat(vehicle, service, rayon, pickupCode)
+      .then((bd) => {
+        setBreakdown(bd);
+
+        // Calculate estimated arrival time if duration available
+        if (bd.estimatedDurationMin && time) {
+          try {
+            const departure = parse(time, "HH:mm", new Date());
+            const arrival = addMinutes(departure, bd.estimatedDurationMin);
+            setEstimatedArrival(format(arrival, "HH:mm"));
+          } catch (e) {
+            console.warn("Could not calculate arrival time:", e);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("Fare calculation error:", err);
+        // Fallback to legacy calculation
+        try {
+          const legacy = calcFareBreakdown(vehicle, service, rayon, pickupCode);
+          setBreakdown(legacy);
+        } catch (e) {
+          console.error("Fallback also failed:", e);
+        }
+      })
+      .finally(() => setBreakdownLoading(false));
+  }, [vehicle, service, rayon, pickupCode, time]);
+
+  // Calculate prices once breakdown is loaded
+  const unitPrice = breakdown?.total || 0;
   const total = unitPrice * pax;
 
   const activeMethods = getActivePaymentMethods();
@@ -311,68 +348,75 @@ const ShuttleBooking = () => {
       <div className="container max-w-3xl py-4 md:py-8 px-3 md:px-6 space-y-4">
         <StepperHeader current="seat" />
         <div className="grid md:grid-cols-[1fr_320px] gap-4">
-        <div className="space-y-4">
-          <Card className="p-4">
-            <h2 className="font-semibold mb-1">Pilih Kursi ({selectedSeats.length}/{pax})</h2>
-            <p className="text-xs text-muted-foreground text-center mb-3">
-              {vehicle.label} • {vehicle.vehicleName} • {service.label}
-            </p>
-            <SeatMap
-              vehicle={vehicle.id}
-              totalSeats={totalSeats}
-              occupied={occupiedSeats}
-              selected={selectedSeats}
-              maxSelect={pax}
-              onToggle={toggleSeat}
-              tier={service.tier as "reguler" | "semi-executive" | "executive"}
-            />
+          <div className="space-y-4">
+            <Card className="p-4">
+              <h2 className="font-semibold mb-1">Pilih Kursi ({selectedSeats.length}/{pax})</h2>
+              <p className="text-xs text-muted-foreground text-center mb-3">
+                {vehicle.label} • {vehicle.vehicleName} • {service.label}
+              </p>
+              <SeatMap
+                vehicle={vehicle.id}
+                totalSeats={totalSeats}
+                occupied={occupiedSeats}
+                selected={selectedSeats}
+                maxSelect={pax}
+                onToggle={toggleSeat}
+                tier={service.tier as "reguler" | "semi-executive" | "executive"}
+              />
+            </Card>
+          </div>
+
+          <Card className="p-4 h-fit md:sticky md:top-4">
+            <h3 className="font-semibold mb-3">Ringkasan</h3>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Rayon</span><span className="font-medium">{rayon?.name}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Jemput</span><span className="font-medium truncate ml-2">{pickupName}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Tujuan</span><span className="font-medium">{DESTINATION.short}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Service</span><span className="font-medium">{service.label}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Kendaraan</span><span className="font-medium">{vehicle.label}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Tanggal</span><span className="font-medium">{dateLabel}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Berangkat</span><span className="font-medium">{time}</span></div>
+              {/* NEW: Show estimated arrival if available */}
+              {estimatedArrival && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tiba (Est.)</span>
+                  <span className="font-medium">{estimatedArrival}</span>
+                </div>
+              )}
+              <div className="flex justify-between"><span className="text-muted-foreground">Penumpang</span><span className="font-medium">{pax}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Kursi</span><span className="font-medium">{selectedSeats.join(", ") || "-"}</span></div>
+            </div>
+
+            {/* Pickup point fare summary */}
+            <div className="mt-3">
+              <PickupPointFareSummary
+                vehicle={vehicle}
+                service={service}
+                rayon={rayon}
+                pickupCode={pickupCode}
+                compact
+              />
+            </div>
+
+            {/* Fare breakdown */}
+            <div className="mt-3 pt-3 border-t">
+              <FareBreakdownCard
+                vehicle={vehicle}
+                service={service}
+                rayon={rayon}
+                pickupCode={pickupCode}
+                pax={pax}
+              />
+            </div>
+
+            <Button
+              disabled={selectedSeats.length !== pax}
+              onClick={() => setStep("form")}
+              className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground h-12 font-semibold"
+            >
+              Lanjut
+            </Button>
           </Card>
-        </div>
-
-        <Card className="p-4 h-fit md:sticky md:top-4">
-          <h3 className="font-semibold mb-3">Ringkasan</h3>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Rayon</span><span className="font-medium">{rayon?.name}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Jemput</span><span className="font-medium truncate ml-2">{pickupName}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Tujuan</span><span className="font-medium">{DESTINATION.short}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Service</span><span className="font-medium">{service.label}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Kendaraan</span><span className="font-medium">{vehicle.label}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Tanggal</span><span className="font-medium">{dateLabel}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Berangkat</span><span className="font-medium">{time}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Penumpang</span><span className="font-medium">{pax}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Kursi</span><span className="font-medium">{selectedSeats.join(", ") || "-"}</span></div>
-          </div>
-
-          {/* Pickup point fare summary */}
-          <div className="mt-3">
-            <PickupPointFareSummary
-              vehicle={vehicle}
-              service={service}
-              rayon={rayon}
-              pickupCode={pickupCode}
-              compact
-            />
-          </div>
-
-          {/* Fare breakdown */}
-          <div className="mt-3 pt-3 border-t">
-            <FareBreakdownCard
-              vehicle={vehicle}
-              service={service}
-              rayon={rayon}
-              pickupCode={pickupCode}
-              pax={pax}
-            />
-          </div>
-
-          <Button
-            disabled={selectedSeats.length !== pax}
-            onClick={() => setStep("form")}
-            className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground h-12 font-semibold"
-          >
-            Lanjut
-          </Button>
-        </Card>
         </div>
       </div>
     </ResponsiveLayout>
