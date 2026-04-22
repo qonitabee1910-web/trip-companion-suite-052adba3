@@ -27,8 +27,8 @@ import {
  * Feature flag untuk gradual rollout OSRM
  * Set via environment variable atau config
  */
-export const OSRM_ENABLED = process.env.VITE_OSRM_ENABLED === "true" ?? false;
-export const OSRM_FALLBACK = process.env.VITE_OSRM_FALLBACK === "false" ?? true; // fallback on error
+export const OSRM_ENABLED = import.meta.env.VITE_OSRM_ENABLED === "true";
+export const OSRM_FALLBACK = import.meta.env.VITE_OSRM_FALLBACK !== "false"; // fallback on error
 
 /**
  * Kompatibel wrapper untuk existing code

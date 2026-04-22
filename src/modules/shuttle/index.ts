@@ -11,6 +11,7 @@ import {
   ScanLine,
   Image,
   PackageOpen,
+  TrendingUp,
 } from "lucide-react";
 import type { AppModule } from "@/shared/moduleSystem";
 import { lazyEl } from "@/shared/lazyEl";
@@ -148,6 +149,16 @@ const shuttleModule: AppModule = {
         order: 40,
       },
     },
+    {
+      path: "/admin/shuttle/fare-audit",
+      element: lazyEl(() => import("@/modules/admin/pages/AdminFareAudit")),
+      sidebar: {
+        label: "Audit Tarif",
+        icon: TrendingUp,
+        group: "Operasional",
+        order: 50,
+      },
+    },
   ],
   hydrate: async () => {
     await ensureHydrated();
@@ -176,6 +187,13 @@ export {
   clearRouteCache,
   type OSRMRoute,
   type OSRMMatrix,
+} from "./lib/osrmRouting";
+
+export {
+  calcFareBreakdownCompat,
+  calcFareBreakdownABTest,
+  auditFareDifferences,
+  debugRayonRouting,
   getCalculationStats,
   getCalculationLogs,
   type FareCalculationLog,

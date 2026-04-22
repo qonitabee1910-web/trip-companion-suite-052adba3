@@ -263,7 +263,7 @@ export function AdminFareAudit() {
                                         <Card className="bg-green-50 border-green-200">
                                             <CardContent className="pt-6">
                                                 <div className="text-3xl font-bold text-green-600">{okCount}</div>
-                                                <div className="text-xs text-muted-foreground">Good (<5%)</div>
+                                                <div className="text-xs text-muted-foreground">{"Good (<5%)"}</div>
                                             </CardContent>
                                         </Card>
                                         <Card className="bg-yellow-50 border-yellow-200">
@@ -275,7 +275,7 @@ export function AdminFareAudit() {
                                         <Card className="bg-red-50 border-red-200">
                                             <CardContent className="pt-6">
                                                 <div className="text-3xl font-bold text-red-600">{errorCount}</div>
-                                                <div className="text-xs text-muted-foreground">Error (>10%)</div>
+                                                <div className="text-xs text-muted-foreground">{"Error (>10%)"}</div>
                                             </CardContent>
                                         </Card>
                                         <Card>
@@ -291,7 +291,7 @@ export function AdminFareAudit() {
                                         <Alert className="bg-green-50 border-green-200">
                                             <CheckCircle2 className="h-4 w-4 text-green-600" />
                                             <AlertDescription className="text-green-700">
-                                                ✓ Audit passed! All fares within acceptable range (<5% error).
+                                                {"✓ Audit passed! All fares within acceptable range (<5% error)."}
                                             </AlertDescription>
                                         </Alert>
                                     ) : (
@@ -368,10 +368,10 @@ export function AdminFareAudit() {
                                                         <tr
                                                             key={row.pickupCode}
                                                             className={`border-b hover:bg-muted/50 ${row.status === "error"
-                                                                    ? "bg-red-50"
-                                                                    : row.status === "warning"
-                                                                        ? "bg-yellow-50"
-                                                                        : ""
+                                                                ? "bg-red-50"
+                                                                : row.status === "warning"
+                                                                    ? "bg-yellow-50"
+                                                                    : ""
                                                                 }`}
                                                         >
                                                             <td className="py-2 px-2">
@@ -390,10 +390,10 @@ export function AdminFareAudit() {
                                                             </td>
                                                             <td
                                                                 className={`text-right py-2 px-2 font-semibold ${row.status === "error"
-                                                                        ? "text-red-600"
-                                                                        : row.status === "warning"
-                                                                            ? "text-yellow-600"
-                                                                            : "text-green-600"
+                                                                    ? "text-red-600"
+                                                                    : row.status === "warning"
+                                                                        ? "text-yellow-600"
+                                                                        : "text-green-600"
                                                                     }`}
                                                             >
                                                                 {row.percentDiff > 0 ? "+" : ""}
