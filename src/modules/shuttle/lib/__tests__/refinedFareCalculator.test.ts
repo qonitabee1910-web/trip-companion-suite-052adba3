@@ -250,4 +250,66 @@ describe("refinedFareCalculator", () => {
       expect(["osrm", "cached", "fallback"]).toContain(breakdown.routingSource);
     });
   });
+
+  describe("Edge Cases and Audit Trail", () => {
+    it("should apply minimum fare", async () => {
+      // Mock a very short route that would normally be cheap
+      const cheapRayon = {
+        ...testRayon,
+        pickupPoints: [
+          { code: "A", name: "A", distanceToNext: 100, lat: 0, lng: 0 },
+          { code: "DEST", name: "DEST", distanceToNext: 0, lat: 0.0001, lng: 0.0001 }
+        ]
+      };
+
+      const breakdown = await calcEnhancedFareBreakdown(
+        { ...testVehicle, basePrice: 0, tierPrices: { reguler: 0 } },
+        { ...testService, farePerKm: 1500 },
+        cheapRayon as any,
+        "A",
+        false
+      );
+
+      expect(breakdown.total).toBe(50000); // MINIMUM_FARE
+      expect(breakdown.auditTrail.isMinimumFareApplied).toBe(true);
+    });
+
+    it("should cap at maximum distance", async () => {
+      // Mock a very long route
+      const longRayon = {
+        ...testRayon,
+        pickupPoints: [
+          { code: "A", name: "A", distanceToNext: 1000000, lat: 0, lng: 0 }, // 1000km
+          { code: "DEST", name: "DEST", distanceToNext: 0, lat: 10, lng: 10 }
+        ]
+      };
+
+      const breakdown = await calcEnhancedFareBreakdown(
+        testVehicle,
+        testService,
+        longRayon as any,
+        "A",
+        false
+      );
+
+      expect(breakdown.distanceKm).toBe(500); // MAXIMUM_DISTANCE_KM
+      expect(breakdown.auditTrail.isMaxDistanceExceeded).toBe(true);
+    });
+
+    it("should provide comprehensive audit trail", async () => {
+      const breakdown = await calcEnhancedFareBreakdown(
+        testVehicle,
+        testService,
+        testRayon,
+        "J1",
+        false
+      );
+
+      expect(breakdown.auditTrail).toBeDefined();
+      expect(breakdown.auditTrail.basePrice).toBe(breakdown.basePrice);
+      expect(breakdown.auditTrail.distanceKm).toBe(breakdown.distanceKm);
+      expect(breakdown.auditTrail.farePerKm).toBe(breakdown.farePerKm);
+      expect(breakdown.auditTrail.surcharge).toBe(breakdown.surcharge);
+    });
+  });
 });

@@ -73,7 +73,7 @@ const AdminServices = () => {
             <h2 className="font-semibold flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" /> Konfigurasi Service Tier
             </h2>
-            <p className="text-xs text-muted-foreground">Multiplier mengalikan harga dasar kendaraan.</p>
+            <p className="text-xs text-muted-foreground">Tarif per KM menentukan harga variabel berdasarkan jarak rute.</p>
           </div>
           <div className="flex gap-2">
             <AlertDialog>
@@ -126,12 +126,18 @@ const AdminServices = () => {
                 <Input value={s.label} onChange={(e) => update(idx, { label: e.target.value })} />
               </div>
               <div>
-                <Label>Harga Multiplier</Label>
+                <Label>Tarif per KM (Rp)</Label>
                 <Input
                   type="number"
-                  step="0.1"
-                  value={s.priceMultiplier}
-                  onChange={(e) => update(idx, { priceMultiplier: Number(e.target.value) })}
+                  min="0"
+                  max="50000"
+                  value={s.farePerKm}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (val >= 0 && val <= 50000) {
+                      update(idx, { farePerKm: val });
+                    }
+                  }}
                 />
               </div>
               <div className="md:col-span-1">

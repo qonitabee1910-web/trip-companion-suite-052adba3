@@ -14,7 +14,7 @@ export interface ServiceConfig {
   tier: ServiceTier;
   label: string;
   description: string;
-  priceMultiplier: number;
+  farePerKm: number;
   features: string[];
   active?: boolean;
 }
@@ -46,7 +46,7 @@ export const SERVICES: ServiceConfig[] = [
     tier: "reguler",
     label: "Reguler",
     description: "Pilihan ekonomis untuk perjalanan nyaman.",
-    priceMultiplier: 1.0,
+    farePerKm: 1500,
     features: ["AC dingin", "Air mineral", "Asuransi penumpang"],
     active: true,
   },
@@ -54,7 +54,7 @@ export const SERVICES: ServiceConfig[] = [
     tier: "semi-executive",
     label: "Semi Executive",
     description: "Lebih lapang dengan fasilitas tambahan.",
-    priceMultiplier: 1.4,
+    farePerKm: 2100,
     features: ["AC dingin", "Reclining seat", "Snack ringan", "WiFi onboard", "USB charger"],
     active: true,
   },
@@ -62,7 +62,7 @@ export const SERVICES: ServiceConfig[] = [
     tier: "executive",
     label: "Executive",
     description: "Pengalaman premium menuju bandara.",
-    priceMultiplier: 1.8,
+    farePerKm: 2700,
     features: ["Captain seat", "Snack box", "Selimut & bantal", "WiFi cepat", "USB charger", "Free luggage 25kg"],
     active: true,
   },
@@ -128,18 +128,15 @@ export interface FareBreakdown {
   distanceM: number;
   distanceKm: number;
   farePerKm: number;
-  multiplier: number;
   distanceFare: number; // (km * farePerKm)
-  serviceFare: number; // distanceFare * multiplier
   surcharge: number;
   total: number; // rounded
 }
 
 /**
  * Fare formula:
- *   distanceFare  = (totalDistanceM / 1000) * farePerKm
- *   serviceFare   = distanceFare * service.priceMultiplier
- *   total         = round1k(basePrice + serviceFare + (rayon.surcharge ?? 0))
+ *   distanceFare  = (totalDistanceM / 1000) * service.farePerKm
+ *   total         = round1k(basePrice + distanceFare + (rayon.surcharge ?? 0))
  *
  * basePrice = vehicle.tierPrices[tier] (atau 0 bila tidak diset)
  * Jika rayon.perPickupFare aktif & pickupCode ada, jarak diukur sisa dari titik tsb.
@@ -150,7 +147,7 @@ export function calcFareBreakdown(
   rayon?: Rayon | null,
   pickupCode?: string,
 ): FareBreakdown {
-  const farePerKm = rayon?.farePerKm ?? DEFAULT_FARE_PER_KM;
+  const farePerKm = service.farePerKm;
   const distanceM = !rayon
     ? 0
     : rayon.perPickupFare && pickupCode
@@ -158,18 +155,15 @@ export function calcFareBreakdown(
     : getTotalDistanceM(rayon);
   const distanceKm = distanceM / 1000;
   const distanceFare = distanceKm * farePerKm;
-  const serviceFare = distanceFare * service.priceMultiplier;
   const surcharge = rayon?.surcharge ?? 0;
   const basePrice = vehicle ? getVehicleTierPrice(vehicle, service.tier) : 0;
-  const total = Math.round((basePrice + serviceFare + surcharge) / 1000) * 1000;
+  const total = Math.round((basePrice + distanceFare + surcharge) / 1000) * 1000;
   return {
     basePrice,
     distanceM,
     distanceKm,
     farePerKm,
-    multiplier: service.priceMultiplier,
     distanceFare,
-    serviceFare,
     surcharge,
     total,
   };

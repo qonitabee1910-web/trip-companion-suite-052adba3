@@ -79,13 +79,9 @@ export const FareBreakdownCard = ({
       <div className={cn("text-xs space-y-0.5", className)}>
         <div className="flex justify-between text-muted-foreground">
           <span>
-            {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × {fmt(breakdown.farePerKm)}
+            {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × {fmt(breakdown.farePerKm)} ({service.label})
           </span>
           <span>{fmt(breakdown.distanceFare)}</span>
-        </div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>×{breakdown.multiplier} {service.label}</span>
-          <span>{fmt(breakdown.serviceFare)}</span>
         </div>
         {vehicle && breakdown.basePrice > 0 && (
           <div className="flex justify-between text-muted-foreground">
@@ -118,15 +114,9 @@ export const FareBreakdownCard = ({
       </div>
       <div className="flex justify-between">
         <span className="text-muted-foreground">
-          Jarak {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × {fmt(breakdown.farePerKm)}
+          Jarak {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × {fmt(breakdown.farePerKm)} ({service.label})
         </span>
         <span>{fmt(breakdown.distanceFare)}</span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">
-          Multiplier {service.label} ×{breakdown.multiplier}
-        </span>
-        <span>{fmt(breakdown.serviceFare)}</span>
       </div>
       {vehicle && breakdown.basePrice > 0 && (
         <div className="flex justify-between">
@@ -160,10 +150,34 @@ export const FareBreakdownCard = ({
         </div>
       )}
 
+      {/* Audit Trail & Edge Cases Info */}
+      {breakdown.auditTrail && (
+        <div className="mt-2 space-y-1">
+          {breakdown.auditTrail.isMinimumFareApplied && (
+            <div className="text-[10px] text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-100">
+              * Tarif minimum Rp50.000 berlaku
+            </div>
+          )}
+          {breakdown.auditTrail.isMaxDistanceExceeded && (
+            <div className="text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100">
+              * Jarak melebihi batas 500km, tarif dibatasi
+            </div>
+          )}
+        </div>
+      )}
+
       {/* NEW: Debug info for development */}
       {process.env.NODE_ENV === "development" && breakdown.routingSource && (
-        <div className="text-[10px] text-muted-foreground/50 border-t pt-1 mt-1">
-          Sumber: {breakdown.routingSource}
+        <div className="text-[10px] text-muted-foreground/50 border-t pt-1 mt-1 flex justify-between items-center">
+          <span>Sumber: {breakdown.routingSource}</span>
+          {breakdown.auditTrail && (
+            <button 
+              onClick={() => console.table(breakdown.auditTrail)}
+              className="hover:text-primary underline"
+            >
+              Log Audit
+            </button>
+          )}
         </div>
       )}
     </div>

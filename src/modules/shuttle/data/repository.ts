@@ -98,6 +98,16 @@ export function getVehicleTypesAll(): VehicleType[] {
 }
 export async function saveVehicleTypes(vehicles: VehicleType[]): Promise<SaveResult> {
   const previous = cloudCache.vehicles;
+  
+  // Activity logging for status changes
+  vehicles.forEach(v => {
+    const prev = previous.find(p => p.id === v.id);
+    if (prev && prev.active !== v.active) {
+      console.log(`[audit] Vehicle ${v.id} status changed: ${prev.active ? 'ACTIVE' : 'INACTIVE'} -> ${v.active ? 'ACTIVE' : 'INACTIVE'} at ${new Date().toISOString()}`);
+      // In a real app, persist this log to a database table
+    }
+  });
+
   cloudCache.vehicles = vehicles;
   notifyStore();
   const res = await persistVehicles(vehicles);

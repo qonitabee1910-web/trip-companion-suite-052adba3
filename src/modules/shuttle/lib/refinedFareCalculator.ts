@@ -36,6 +36,14 @@ export interface RefinedRayon extends Rayon {
 export interface EnhancedFareBreakdown extends FareBreakdown {
   estimatedDurationMin: number; // minutes
   routingSource: "osrm" | "cached" | "fallback";
+  auditTrail: {
+    basePrice: number;
+    distanceKm: number;
+    farePerKm: number;
+    surcharge: number;
+    isMinimumFareApplied: boolean;
+    isMaxDistanceExceeded: boolean;
+  };
 }
 
 /**
@@ -267,6 +275,9 @@ export async function getRemainingDistance(
   return { distanceM: totalDistance, durationS: totalDuration, source };
 }
 
+const MINIMUM_FARE = 50000; // Minimum fare in Rp
+const MAXIMUM_DISTANCE_KM = 500; // Maximum distance allowed for shuttle
+
 /**
  * Enhanced fare calculation dengan OSRM distances
  */
@@ -282,18 +293,24 @@ export async function calcEnhancedFareBreakdown(
       basePrice: 0,
       distanceM: 0,
       distanceKm: 0,
-      farePerKm: 1500,
-      multiplier: service.priceMultiplier || 1,
+      farePerKm: service.farePerKm || 1500,
       distanceFare: 0,
-      serviceFare: 0,
       surcharge: 0,
       total: 0,
       estimatedDurationMin: 0,
       routingSource: "fallback",
+      auditTrail: {
+        basePrice: 0,
+        distanceKm: 0,
+        farePerKm: service.farePerKm || 1500,
+        surcharge: 0,
+        isMinimumFareApplied: false,
+        isMaxDistanceExceeded: false,
+      },
     };
   }
 
-  const farePerKm = rayon.farePerKm ?? 1500;
+  const farePerKm = service.farePerKm;
   let distanceM = 0;
   let durationS = 0;
   let routingSource: "osrm" | "cached" | "fallback" = "fallback";
@@ -320,14 +337,28 @@ export async function calcEnhancedFareBreakdown(
     routingSource = "fallback";
   }
 
-  const distanceKm = distanceM / 1000;
+  let distanceKm = distanceM / 1000;
+  let isMaxDistanceExceeded = false;
+  if (distanceKm > MAXIMUM_DISTANCE_KM) {
+    console.warn(`Distance ${distanceKm}km exceeds maximum ${MAXIMUM_DISTANCE_KM}km. Capping at maximum.`);
+    distanceKm = MAXIMUM_DISTANCE_KM;
+    isMaxDistanceExceeded = true;
+  }
+
   const distanceFare = distanceKm * farePerKm;
-  const serviceFare = distanceFare * service.priceMultiplier;
   const surcharge = rayon.surcharge ?? 0;
   const basePrice = vehicle
     ? (vehicle.tierPrices?.[service.tier] ?? vehicle.basePrice ?? 0)
     : 0;
-  const total = Math.round((basePrice + serviceFare + surcharge) / 1000) * 1000;
+  
+  let calculatedTotal = Math.round((basePrice + distanceFare + surcharge) / 1000) * 1000;
+  let isMinimumFareApplied = false;
+
+  if (calculatedTotal < MINIMUM_FARE) {
+    calculatedTotal = MINIMUM_FARE;
+    isMinimumFareApplied = true;
+  }
+
   const estimatedDurationMin = Math.round(durationS / 60);
 
   return {
@@ -335,13 +366,19 @@ export async function calcEnhancedFareBreakdown(
     distanceM,
     distanceKm,
     farePerKm,
-    multiplier: service.priceMultiplier,
     distanceFare,
-    serviceFare,
     surcharge,
-    total,
+    total: calculatedTotal,
     estimatedDurationMin,
     routingSource,
+    auditTrail: {
+      basePrice,
+      distanceKm,
+      farePerKm,
+      surcharge,
+      isMinimumFareApplied,
+      isMaxDistanceExceeded,
+    },
   };
 }
 

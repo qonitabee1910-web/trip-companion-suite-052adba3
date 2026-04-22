@@ -110,13 +110,34 @@ const AdminVehicles = () => {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-xs px-2 py-1 rounded bg-muted">{v.id}</span>
-                <label className="flex items-center gap-2 text-xs">
-                  <Switch
-                    checked={v.active !== false}
-                    onCheckedChange={(checked) => update(idx, { active: checked })}
-                  />
-                  <span className="text-muted-foreground">{v.active !== false ? "Aktif" : "Nonaktif"}</span>
-                </label>
+                <div className="flex items-center gap-2">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <div className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Switch
+                          checked={v.active !== false}
+                        />
+                        <span className="text-muted-foreground">{v.active !== false ? "Aktif" : "Nonaktif"}</span>
+                      </div>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Ubah Status Kendaraan?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {v.active !== false 
+                            ? "Menonaktifkan kendaraan akan menyembunyikannya dari aplikasi user. Booking yang sudah ada tetap tersimpan tetapi tidak bisa memilih kendaraan ini untuk jadwal baru."
+                            : "Mengaktifkan kembali kendaraan akan menampilkannya di aplikasi user."}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => update(idx, { active: !(v.active !== false) })}>
+                          Lanjutkan
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
               <div className="flex items-center gap-1 flex-wrap">
                 <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1">
