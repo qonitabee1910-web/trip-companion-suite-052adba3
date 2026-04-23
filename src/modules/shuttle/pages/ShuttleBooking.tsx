@@ -18,7 +18,7 @@ import { useCloudSnapshot } from "../hooks/useCloudSnapshot";
 import { getService, getVehicleType, calcFareBreakdown, getVehicleSeatCount, SERVICES, VEHICLE_TYPES } from "../data/services";
 import { calcFareBreakdownCompat } from "../lib/migrationHelper";
 import { getRayon, getDestination } from "../data/rayons";
-import { addBooking } from "../data/repository";
+import { addBooking, isVehicleAllowed, logVehicleAccessAttempt } from "../data/repository";
 import { getOccupiedSeats } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import {
@@ -75,6 +75,28 @@ const ShuttleBooking = () => {
   const [breakdown, setBreakdown] = useState<any>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [estimatedArrival, setEstimatedArrival] = useState<string | null>(null);
+
+  // Validate vehicle-tier access on mount
+  useEffect(() => {
+    const allowed = isVehicleAllowed(vehicle.id, service.tier);
+    if (!allowed) {
+      // Log bypass attempt
+      logVehicleAccessAttempt(
+        vehicle.id,
+        service.tier,
+        "bypass_attempt",
+        "blocked",
+        "vehicle_tier_not_allowed",
+      );
+
+      toast.error(
+        `${vehicle.label} tidak tersedia untuk tier ${service.label}. Silakan pilih kendaraan lain.`,
+      );
+
+      // Redirect back to vehicle selection
+      navigate(`/shuttle/vehicle?${params.toString()}`, { replace: true });
+    }
+  }, [vehicle.id, service.tier, navigate, params]);
 
   // Load breakdown asynchronously (with OSRM support via feature flag)
   useEffect(() => {
@@ -157,6 +179,10 @@ const ShuttleBooking = () => {
       paymentRef: result.ref,
     });
     setConfirmedBooking(created);
+
+    // Log successful booking
+    logVehicleAccessAttempt(vehicle.id, service.tier, "book", "allowed", undefined);
+
     setPaying(false);
     setStep("success");
   };

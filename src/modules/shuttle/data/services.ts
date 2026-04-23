@@ -1,4 +1,9 @@
-import { getTotalDistanceM, getRemainingDistanceM, type Rayon, DEFAULT_FARE_PER_KM } from "./rayons";
+import {
+  getTotalDistanceM,
+  getRemainingDistanceM,
+  type Rayon,
+  DEFAULT_FARE_PER_KM,
+} from "./rayons";
 import {
   buildLayoutKey,
   loadLayoutFromStorage,
@@ -41,6 +46,36 @@ export interface VehicleType {
   basePrice?: number;
 }
 
+/**
+ * VehicleTierMapping — Controls which vehicles are allowed for each service tier.
+ * Deklaratif: admin centang vehicle mana boleh di tier mana.
+ */
+export interface VehicleTierMapping {
+  id: string;
+  vehicle_id: VehicleTypeId;
+  tier: ServiceTier;
+  allowed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * VehicleAccessLog — Audit trail untuk semua akses vehicle (view, book, bypass).
+ * Used untuk monitoring & analytics.
+ */
+export interface VehicleAccessLog {
+  id: string;
+  user_id: string | null;
+  vehicle_id: VehicleTypeId;
+  tier: ServiceTier;
+  action: "view" | "book" | "bypass_attempt";
+  result: "allowed" | "blocked" | "not_configured";
+  reason?: string;
+  ip_address?: string;
+  user_agent?: string;
+  timestamp: string;
+}
+
 export const SERVICES: ServiceConfig[] = [
   {
     tier: "reguler",
@@ -55,7 +90,13 @@ export const SERVICES: ServiceConfig[] = [
     label: "Semi Executive",
     description: "Lebih lapang dengan fasilitas tambahan.",
     farePerKm: 2100,
-    features: ["AC dingin", "Reclining seat", "Snack ringan", "WiFi onboard", "USB charger"],
+    features: [
+      "AC dingin",
+      "Reclining seat",
+      "Snack ringan",
+      "WiFi onboard",
+      "USB charger",
+    ],
     active: true,
   },
   {
@@ -63,7 +104,14 @@ export const SERVICES: ServiceConfig[] = [
     label: "Executive",
     description: "Pengalaman premium menuju bandara.",
     farePerKm: 2700,
-    features: ["Captain seat", "Snack box", "Selimut & bantal", "WiFi cepat", "USB charger", "Free luggage 25kg"],
+    features: [
+      "Captain seat",
+      "Snack box",
+      "Selimut & bantal",
+      "WiFi cepat",
+      "USB charger",
+      "Free luggage 25kg",
+    ],
     active: true,
   },
 ];
@@ -75,7 +123,11 @@ export const VEHICLE_TYPES: VehicleType[] = [
     vehicleName: "HiAce Premium",
     description: "Kapasitas besar, cocok rombongan keluarga.",
     active: true,
-    tierPrices: { reguler: 120000, "semi-executive": 160000, executive: 220000 },
+    tierPrices: {
+      reguler: 120000,
+      "semi-executive": 160000,
+      executive: 220000,
+    },
   },
   {
     id: "suv",
@@ -83,7 +135,11 @@ export const VEHICLE_TYPES: VehicleType[] = [
     vehicleName: "Premio",
     description: "Lebih privat, ruang kabin luas.",
     active: true,
-    tierPrices: { reguler: 180000, "semi-executive": 230000, executive: 300000 },
+    tierPrices: {
+      reguler: 180000,
+      "semi-executive": 230000,
+      executive: 300000,
+    },
   },
   {
     id: "minicar",
@@ -109,15 +165,24 @@ export function getVehicleType(id: string): VehicleType | undefined {
  * Hitung kapasitas kursi dari seat layout (sumber tunggal).
  * Tidak butuh tier? gunakan reguler sebagai default.
  */
-export function getVehicleSeatCount(vehicleId: VehicleTypeId, tier: ServiceTier = "reguler"): number {
-  const key = buildLayoutKey(vehicleId as LayoutVehicleId, tier as LayoutServiceTier);
+export function getVehicleSeatCount(
+  vehicleId: VehicleTypeId,
+  tier: ServiceTier = "reguler",
+): number {
+  const key = buildLayoutKey(
+    vehicleId as LayoutVehicleId,
+    tier as LayoutServiceTier,
+  );
   const stored = loadLayoutFromStorage(key);
   const layout = stored || LAYOUT_PRESETS[key];
   return layout.seats.length;
 }
 
 /** Ambil harga dasar per (vehicle × tier). Fallback ke basePrice lama jika tidak ada. */
-export function getVehicleTierPrice(vehicle: VehicleType, tier: ServiceTier): number {
+export function getVehicleTierPrice(
+  vehicle: VehicleType,
+  tier: ServiceTier,
+): number {
   const v = vehicle.tierPrices?.[tier];
   if (typeof v === "number") return v;
   return vehicle.basePrice ?? 0;
@@ -151,13 +216,14 @@ export function calcFareBreakdown(
   const distanceM = !rayon
     ? 0
     : rayon.perPickupFare && pickupCode
-    ? getRemainingDistanceM(rayon, pickupCode)
-    : getTotalDistanceM(rayon);
+      ? getRemainingDistanceM(rayon, pickupCode)
+      : getTotalDistanceM(rayon);
   const distanceKm = distanceM / 1000;
   const distanceFare = distanceKm * farePerKm;
   const surcharge = rayon?.surcharge ?? 0;
   const basePrice = vehicle ? getVehicleTierPrice(vehicle, service.tier) : 0;
-  const total = Math.round((basePrice + distanceFare + surcharge) / 1000) * 1000;
+  const total =
+    Math.round((basePrice + distanceFare + surcharge) / 1000) * 1000;
   return {
     basePrice,
     distanceM,
@@ -179,7 +245,11 @@ export function calcPrice(
 }
 
 // Deprecated
-export function mockSeatsAvailable(vehicleId: VehicleTypeId, tier: ServiceTier, totalSeats: number): number {
+export function mockSeatsAvailable(
+  vehicleId: VehicleTypeId,
+  tier: ServiceTier,
+  totalSeats: number,
+): number {
   const seed = (vehicleId.length * 3 + tier.length * 5) % totalSeats;
   return Math.max(1, totalSeats - seed - 1);
 }

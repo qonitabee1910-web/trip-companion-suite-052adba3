@@ -1,13 +1,14 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
 import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, AlertTriangle, Bus, Car, Caravan } from "lucide-react";
+import { Users, AlertTriangle, Bus, Car, Caravan, Lock } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { calcPrice, getService, getVehicleSeatCount } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
-import { getServicesAll, getVehicleTypesAll } from "../data/repository";
+import { getServicesAll, getVehicleTypesAll, getAvailableVehiclesForTier, logVehicleAccessAttempt } from "../data/repository";
 import { getAvailableCount } from "../data/inventory";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
@@ -25,8 +26,13 @@ const ShuttleVehicle = () => {
   const rayon = getRayon(params.get("rayon") || "A");
   const DESTINATION = getDestination();
   const SERVICES = getServicesAll();
-  const VEHICLE_TYPES = getVehicleTypesAll().filter((v) => v.active !== false);
   const service = getService(params.get("service") || "reguler") || SERVICES[0];
+
+  // Filter vehicles: only show active vehicles that are allowed for this tier
+  const VEHICLE_TYPES = getAvailableVehiclesForTier(service.tier);
+  const allVehicles = getVehicleTypesAll().filter((v) => v.active !== false);
+  const unavailableVehicles = allVehicles.filter((v) => !VEHICLE_TYPES.find(av => av.id === v.id));
+
   const pax = Number(params.get("pax") || 1);
   const date = params.get("date") || "";
   const time = params.get("time") || "";
@@ -34,10 +40,38 @@ const ShuttleVehicle = () => {
   const pickupCode = params.get("pickup") || undefined;
 
   const handlePick = (vehicleId: string) => {
+    // Log booking action
+    logVehicleAccessAttempt(
+      vehicleId as any,
+      service.tier,
+      "book",
+      "allowed",
+      undefined,
+    );
+
     const next = new URLSearchParams(params);
     next.set("vehicle", vehicleId);
     navigate(`/shuttle/book?${next.toString()}`);
   };
+
+  // Log page view
+  useEffect(() => {
+    // Log a "view" action for each vehicle on this page
+    VEHICLE_TYPES.forEach((v) => {
+      logVehicleAccessAttempt(v.id, service.tier, "view", "allowed", undefined);
+    });
+
+    // Log blocked vehicles
+    unavailableVehicles.forEach((v) => {
+      logVehicleAccessAttempt(
+        v.id,
+        service.tier,
+        "view",
+        "blocked",
+        "vehicle_tier_not_allowed",
+      );
+    });
+  }, [service.tier, VEHICLE_TYPES, unavailableVehicles]);
 
   return (
     <ResponsiveLayout
@@ -64,7 +98,25 @@ const ShuttleVehicle = () => {
           compact
         />
 
+        {unavailableVehicles.length > 0 && (
+          <Card className="p-4 bg-amber-50 border-amber-200">
+            <div className="flex gap-2">
+              <Lock className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Kendaraan Tidak Tersedia</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  {unavailableVehicles.map((v) => v.label).join(", ")} tidak tersedia untuk tier {service.label}
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {VEHICLE_TYPES.length === 0 && (
+          <Card className="p-4 text-sm text-muted-foreground">Belum ada kendaraan aktif untuk tier ini.</Card>
+        )}
+
+        {VEHICLE_TYPES.length === 0 && unavailableVehicles.length === 0 && (
           <Card className="p-4 text-sm text-muted-foreground">Belum ada kendaraan aktif.</Card>
         )}
 

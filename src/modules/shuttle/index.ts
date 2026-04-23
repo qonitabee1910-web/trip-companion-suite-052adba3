@@ -12,6 +12,8 @@ import {
   Image,
   PackageOpen,
   TrendingUp,
+  Lock,
+  Eye,
 } from "lucide-react";
 import type { AppModule } from "@/shared/moduleSystem";
 import { lazyEl } from "@/shared/lazyEl";
@@ -110,6 +112,16 @@ const shuttleModule: AppModule = {
       },
     },
     {
+      path: "/admin/shuttle/tier-access",
+      element: lazyEl(() => import("@/modules/admin/pages/AdminTierAccess")),
+      sidebar: {
+        label: "Tier-Vehicle Access",
+        icon: Lock,
+        group: "Setup Layanan",
+        order: 35,
+      },
+    },
+    {
       path: "/admin/shuttle/seat-editor",
       element: lazyEl(() => import("@/modules/admin/pages/AdminSeatEditor")),
       sidebar: {
@@ -157,6 +169,16 @@ const shuttleModule: AppModule = {
         icon: TrendingUp,
         group: "Operasional",
         order: 50,
+      },
+    },
+    {
+      path: "/admin/shuttle/access-logs",
+      element: lazyEl(() => import("@/modules/admin/pages/AdminAccessLogs")),
+      sidebar: {
+        label: "Access Logs",
+        icon: Eye,
+        group: "Operasional",
+        order: 60,
       },
     },
   ],
