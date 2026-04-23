@@ -542,12 +542,18 @@ function setupRealtime() {
       const dest = data.find((s) => s.key === "destination");
       const cnt = data.find((s) => s.key === "content");
       const pay = data.find((s) => s.key === "payment_gateway");
+      const fare = data.find((s) => s.key === "fare_settings");
       if (dest)
         cache.destination = {
           ...DEFAULT_DESTINATION,
           ...(dest.value as object),
         };
       if (cnt) cache.content = { ...DEFAULT_CONTENT, ...(cnt.value as object) };
+      if (fare)
+        cache.fareSettings = {
+          ...cache.fareSettings,
+          ...(fare.value as object),
+        };
       if (pay) {
         const { DEFAULT_PAYMENT_SETTINGS } = await import("./payment");
         cache.paymentSettings = {
@@ -555,6 +561,20 @@ function setupRealtime() {
           ...(pay.value as object),
         };
       }
+      notify();
+    }
+  };
+  const refetchVehicleTierMappings = async () => {
+    const { data } = await supabase.from("vehicle_tier_mapping" as any).select("*");
+    if (data) {
+      cache.vehicleTierMappings = (data as any[]).map((m) => ({
+        id: m.id,
+        vehicle_id: m.vehicle_id as VehicleTypeId,
+        tier: m.tier as ServiceTier,
+        allowed: m.allowed,
+        created_at: m.created_at,
+        updated_at: m.updated_at,
+      }));
       notify();
     }
   };
@@ -590,6 +610,11 @@ function setupRealtime() {
       "postgres_changes",
       { event: "*", schema: "public", table: "shuttle_settings" },
       refetchSettings,
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "vehicle_tier_mapping" as any },
+      refetchVehicleTierMappings,
     )
     .subscribe();
 }

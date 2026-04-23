@@ -8,7 +8,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CheckCircle2, Sparkles, Crown, Gauge, Info } from "lucide-react";
 import { calcPrice, getVehicleTierPrice } from "../data/services";
 import { getRayon, getDestination } from "../data/rayons";
-import { getServicesAll, getVehicleTypesAll } from "../data/repository";
+import { 
+  getServicesAll, 
+  getVehicleTypesAll, 
+  isVehicleAllowed,
+  getAvailableVehiclesForTier 
+} from "../data/repository";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { FareBreakdownCard } from "../components/FareBreakdownCard";
 import { ServicePriceLabel } from "../components/ServicePriceLabel";
@@ -73,7 +78,11 @@ const ShuttleService = () => {
         {SERVICES.map((s) => {
           const Icon = tierIcon[s.tier] ?? Gauge;
           const pickupCode = params.get("pickup");
-          const cheapestForTier = VEHICLE_TYPES.reduce<typeof VEHICLE_TYPES[number] | undefined>(
+          
+          // Get allowed vehicles for this specific tier
+          const allowedVehicles = VEHICLE_TYPES.filter(v => isVehicleAllowed(v.id, s.tier));
+          
+          const cheapestForTier = allowedVehicles.reduce<typeof VEHICLE_TYPES[number] | undefined>(
             (min, v) => {
               const p = getVehicleTierPrice(v, s.tier);
               if (!min) return v;
@@ -155,10 +164,11 @@ const ShuttleService = () => {
 
               <Button
                 onClick={() => handlePick(s.tier)}
+                disabled={allowedVehicles.length === 0}
                 className={`w-full ${isExec ? "bg-accent hover:bg-accent/90 text-accent-foreground" : ""}`}
                 variant={isExec ? "default" : "outline"}
               >
-                Pilih {s.label}
+                {allowedVehicles.length === 0 ? "Tidak Tersedia" : `Pilih ${s.label}`}
               </Button>
             </Card>
           );

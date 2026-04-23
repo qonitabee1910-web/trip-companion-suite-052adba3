@@ -6,7 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plane, MapPin, ArrowRight, Ticket, User, TrendingUp } from "lucide-react";
-import { getRayons, getDestinationStored, getContentStored } from "../data/repository";
+import { 
+  getRayonsActive, 
+  getDestinationStored, 
+  getContentStored 
+} from "../data/repository";
 import { useAuth } from "@/shared/auth/useAuth";
 import { getRayonStartingPrice } from "../lib/migrationHelper";
 
@@ -20,7 +24,7 @@ const rayonAccent: Record<string, string> = {
 const ShuttleHome = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const RAYONS = getRayons();
+  const RAYONS = getRayonsActive();
   const DESTINATION = getDestinationStored();
   const content = getContentStored();
   

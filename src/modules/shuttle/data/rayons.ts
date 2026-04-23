@@ -25,6 +25,7 @@ export interface Rayon {
   surcharge?: number;
   farePerKm?: number; // Rp per km, default 1500
   perPickupFare?: boolean; // hitung sisa jarak dari titik user
+  active?: boolean;
 
   // Rayon-level routing metadata
   routingLastUpdate?: number; // when entire rayon was last synced

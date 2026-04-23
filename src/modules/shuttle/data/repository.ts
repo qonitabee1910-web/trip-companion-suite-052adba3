@@ -49,6 +49,9 @@ export interface SaveResult {
 export function getRayons(): Rayon[] {
   return cloudCache.rayons;
 }
+export function getRayonsActive(): Rayon[] {
+  return cloudCache.rayons.filter((r) => r.active !== false);
+}
 export async function saveRayons(rayons: Rayon[]): Promise<SaveResult> {
   const previous = cloudCache.rayons;
   // Optimistic update so subscribers see the change immediately
