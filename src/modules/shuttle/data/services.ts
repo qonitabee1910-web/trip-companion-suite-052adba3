@@ -73,7 +73,7 @@ export interface VehicleAccessLog {
   reason?: string;
   ip_address?: string;
   user_agent?: string;
-  timestamp: string;
+  created_at: string;
 }
 
 export const SERVICES: ServiceConfig[] = [

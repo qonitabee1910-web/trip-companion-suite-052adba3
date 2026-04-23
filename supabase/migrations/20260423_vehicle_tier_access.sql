@@ -23,7 +23,21 @@ CREATE TABLE IF NOT EXISTS vehicle_access_logs (
   result TEXT NOT NULL CHECK (result IN ('allowed', 'blocked', 'not_configured')),
   reason TEXT, -- Optional: why it was blocked
   ip_address INET,
-  user_agent TEXT);
+  user_agent TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ensure columns exist if the table was created by a previous partial run
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicle_access_logs' AND column_name='result') THEN
+        ALTER TABLE vehicle_access_logs ADD COLUMN result TEXT NOT NULL DEFAULT 'allowed' CHECK (result IN ('allowed', 'blocked', 'not_configured'));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicle_access_logs' AND column_name='created_at') THEN
+        ALTER TABLE vehicle_access_logs ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+END $$;
 
 -- Create indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_vehicle_tier_mapping_vehicle ON vehicle_tier_mapping(vehicle_id);
@@ -31,32 +45,48 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_tier_mapping_tier ON vehicle_tier_mapping
 CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_vehicle ON vehicle_access_logs(vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_tier ON vehicle_access_logs(tier);
 CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_user ON vehicle_access_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_timestamp ON vehicle_access_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_created_at ON vehicle_access_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_result ON vehicle_access_logs(result);
 
 -- RLS: Admins can read/write vehicle_tier_mapping
-CREATE POLICY "Admins can manage vehicle tier mapping"
-ON vehicle_tier_mapping
-USING (auth.jwt() ->> 'role' = 'admin')
-WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Admins can manage vehicle tier mapping" ON vehicle_tier_mapping;
+    CREATE POLICY "Admins can manage vehicle tier mapping"
+    ON vehicle_tier_mapping
+    USING (auth.jwt() ->> 'role' = 'admin')
+    WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+END $$;
 
 -- RLS: Admins can read access logs
-CREATE POLICY "Admins can view vehicle access logs"
-ON vehicle_access_logs
-FOR SELECT
-USING (auth.jwt() ->> 'role' = 'admin');
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Admins can view vehicle access logs" ON vehicle_access_logs;
+    CREATE POLICY "Admins can view vehicle access logs"
+    ON vehicle_access_logs
+    FOR SELECT
+    USING (auth.jwt() ->> 'role' = 'admin');
+END $$;
 
 -- RLS: System (service role) can insert logs
-CREATE POLICY "System can log vehicle access"
-ON vehicle_access_logs
-FOR INSERT
-WITH CHECK (true);
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "System can log vehicle access" ON vehicle_access_logs;
+    CREATE POLICY "System can log vehicle access"
+    ON vehicle_access_logs
+    FOR INSERT
+    WITH CHECK (true);
+END $$;
 
 -- RLS: Admins can delete old logs
-CREATE POLICY "Admins can delete old access logs"
-ON vehicle_access_logs
-FOR DELETE
-USING (auth.jwt() ->> 'role' = 'admin');
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Admins can delete old access logs" ON vehicle_access_logs;
+    CREATE POLICY "Admins can delete old access logs"
+    ON vehicle_access_logs
+    FOR DELETE
+    USING (auth.jwt() ->> 'role' = 'admin');
+END $$;
 
 -- Enable RLS
 ALTER TABLE vehicle_tier_mapping ENABLE ROW LEVEL SECURITY;

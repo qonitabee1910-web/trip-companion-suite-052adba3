@@ -83,12 +83,9 @@ export async function getRouteDistance(
   }
 
   try {
-    // OSRM Route service
-    const url = new URL("/route/v1/driving", OSRM_ENDPOINTS.public);
-    url.searchParams.set(
-      "coordinates",
-      `${fromLng},${fromLat};${toLng},${toLat}`,
-    );
+    // OSRM Route service: /route/v1/{profile}/{coordinates}
+    const coordStr = `${fromLng},${fromLat};${toLng},${toLat}`;
+    const url = new URL(`${OSRM_ENDPOINTS.public}/route/v1/driving/${coordStr}`);
     url.searchParams.set("overview", "false"); // Don't need geometry for now
 
     const response = await fetch(url.toString());
@@ -141,10 +138,10 @@ export async function getRouteMatrix(
   const cacheKey = `matrix_${coordinates.map(([lat, lng]) => `${lat.toFixed(4)},${lng.toFixed(4)}`).join("|")}`;
 
   try {
-    // OSRM Matrix service
-    const url = new URL("/table/v1/driving", OSRM_ENDPOINTS.public);
+    // OSRM Matrix service: /table/v1/{profile}/{coordinates}
     const coordStr = coordinates.map(([lat, lng]) => `${lng},${lat}`).join(";");
-    url.searchParams.set("coordinates", coordStr);
+    const url = new URL(`${OSRM_ENDPOINTS.public}/table/v1/driving/${coordStr}`);
+    url.searchParams.set("annotations", "distance,duration");
 
     const response = await fetch(url.toString());
     if (!response || !response.ok) {
@@ -155,7 +152,13 @@ export async function getRouteMatrix(
 
     const data: OSRMMatrix = await response.json();
     if (data.code !== "Ok") {
+      console.error("OSRM Matrix API returned non-OK code:", data.code, data);
       throw new Error(`OSRM Matrix error: ${data.code}`);
+    }
+
+    if (!data.distances) {
+      console.error("OSRM Matrix API response missing distances:", data);
+      throw new Error("OSRM Matrix missing distances");
     }
 
     return { ...data, source: "osrm" };

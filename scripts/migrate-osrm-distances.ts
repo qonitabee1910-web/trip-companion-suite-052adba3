@@ -87,13 +87,13 @@ async function migrateRayons(): Promise<void> {
         continue;
       }
 
-      // Calculate totals (including DEST with 0 distance)
-      const totalOriginal = updatedPoints.reduce(
+      // Calculate totals
+      const totalOriginal = pickupPoints.reduce(
         (sum, p) => sum + (p.distanceToNext || 0),
         0,
       );
       const totalRouting = updatedPoints.reduce(
-        (sum, p) => sum + (p.routingDistance || p.distanceToNext || 0),
+        (sum, p) => sum + (p.routingDistance || 0),
         0,
       );
       const difference = totalRouting - totalOriginal;
@@ -119,8 +119,10 @@ async function migrateRayons(): Promise<void> {
         difference: `${percentDiff}%`,
       });
 
-      // TODO: In production, save to database:
-      // await db.rayons.update(rayon.id, { pickupPoints: updatedPoints });
+      // Output updated points for manual copy-paste
+      console.log(`  📝 UPDATED POINTS FOR ${rayon.id}:`);
+      console.log(JSON.stringify(updatedPoints, null, 2));
+      console.log("\n");
 
       // Be nice to OSRM API
       if (i < SEED_RAYONS_PYUGO.length - 1) {

@@ -13,6 +13,8 @@ import {
   DEPART_TIMES as DEFAULT_TIMES,
   DEFAULT_DESTINATION,
   DEFAULT_CONTENT,
+} from "./rayons.seed";
+import {
   type Rayon,
   type Destination,
   type ShuttleContent,
@@ -136,7 +138,7 @@ async function hydrate() {
         .eq("active", true)
         .order("sort_order"),
       supabase.from("room_types").select("*").order("sort_order"),
-      supabase.from("vehicle_tier_mapping").select("*"),
+      supabase.from("vehicle_tier_mapping" as any).select("*"),
     ]);
 
     // Rayons + pickup_points join
@@ -168,11 +170,11 @@ async function hydrate() {
     }
 
     if (svcRes.data) {
-      cache.services = svcRes.data.map((s) => ({
+      cache.services = svcRes.data.map((s: any) => ({
         tier: s.tier as ServiceTier,
         label: s.label,
         description: s.description,
-        priceMultiplier: Number(s.price_multiplier),
+        farePerKm: Number(s.fare_per_km || s.price_multiplier || 1500),
         features: s.features || [],
         active: s.active,
       }));
@@ -298,7 +300,7 @@ async function hydrate() {
 
     // Vehicle Tier Mappings
     if (vehicleTierRes.data) {
-      cache.vehicleTierMappings = vehicleTierRes.data.map((m) => ({
+      cache.vehicleTierMappings = (vehicleTierRes.data as any[]).map((m) => ({
         id: m.id,
         vehicle_id: m.vehicle_id as VehicleTypeId,
         tier: m.tier as ServiceTier,
@@ -486,11 +488,11 @@ function setupRealtime() {
       .select("*")
       .order("sort_order");
     if (data) {
-      cache.services = data.map((s) => ({
+      cache.services = data.map((s: any) => ({
         tier: s.tier as ServiceTier,
         label: s.label,
         description: s.description,
-        priceMultiplier: Number(s.price_multiplier),
+        farePerKm: Number(s.fare_per_km || s.price_multiplier || 1500),
         features: s.features || [],
         active: s.active,
       }));
@@ -807,7 +809,7 @@ export async function persistServices(
     tier: s.tier,
     label: s.label,
     description: s.description,
-    price_multiplier: s.priceMultiplier,
+    price_multiplier: s.farePerKm,
     features: s.features,
     active: s.active ?? true,
     sort_order: i,
@@ -1172,15 +1174,25 @@ export function getVehiclesForTier(tier: ServiceTier): VehicleType[] {
 export async function persistVehicleTierMappings(
   mappings: VehicleTierMapping[],
 ): Promise<SaveResult> {
-  const rows = mappings.map((m) => ({
-    id: m.id,
-    vehicle_id: m.vehicle_id,
-    tier: m.tier,
-    allowed: m.allowed,
-  }));
+  const rows = mappings.map((m) => {
+    const row: any = {
+      vehicle_id: m.vehicle_id,
+      tier: m.tier,
+      allowed: m.allowed,
+    };
+
+    // Only include id if it's a valid UUID (not a temporary UI-generated ID)
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (m.id && uuidRegex.test(m.id)) {
+      row.id = m.id;
+    }
+
+    return row;
+  });
 
   const res = await supabase
-    .from("vehicle_tier_mapping")
+    .from("vehicle_tier_mapping" as any)
     .upsert(rows, { onConflict: "vehicle_id,tier" })
     .select("id");
 
@@ -1231,7 +1243,7 @@ export async function logVehicleAccess(
     // Silently fail IP detection
   }
 
-  const { error } = await supabase.from("vehicle_access_logs").insert({
+  const { error } = await supabase.from("vehicle_access_logs" as any).insert({
     user_id: user?.id ?? null,
     vehicle_id: vehicleId,
     tier,
@@ -1263,14 +1275,14 @@ export async function getVehicleAccessLogs(
 ): Promise<VehicleAccessLog[]> {
   const { vehicleId, tier, result, limit = 50, offset = 0 } = options;
 
-  let query = supabase.from("vehicle_access_logs").select("*");
+  let query = supabase.from("vehicle_access_logs" as any).select("*");
 
   if (vehicleId) query = query.eq("vehicle_id", vehicleId);
   if (tier) query = query.eq("tier", tier);
   if (result) query = query.eq("result", result);
 
   const { data, error } = await query
-    .order("timestamp", { ascending: false })
+    .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (error) {
@@ -1278,7 +1290,7 @@ export async function getVehicleAccessLogs(
     return [];
   }
 
-  return (data || []).map((log) => ({
+  return (data || []).map((log: any) => ({
     id: log.id,
     user_id: log.user_id,
     vehicle_id: log.vehicle_id as VehicleTypeId,
@@ -1288,7 +1300,7 @@ export async function getVehicleAccessLogs(
     reason: log.reason,
     ip_address: log.ip_address,
     user_agent: log.user_agent,
-    timestamp: log.timestamp,
+    created_at: log.created_at,
   }));
 }
 
@@ -1303,9 +1315,9 @@ export async function purgeOldAccessLogs(
   cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
   const { error } = await supabase
-    .from("vehicle_access_logs")
+    .from("vehicle_access_logs" as any)
     .delete()
-    .lt("timestamp", cutoffDate.toISOString());
+    .lt("created_at", cutoffDate.toISOString());
 
   if (error) {
     console.error("[cloudStore] purgeOldAccessLogs failed:", error);
