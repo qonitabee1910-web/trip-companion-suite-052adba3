@@ -60,6 +60,10 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_result ON vehicle_access_logs
 DO $$ 
 BEGIN
     DROP POLICY IF EXISTS "Admins can manage vehicle tier mapping" ON vehicle_tier_mapping;
+    DROP POLICY IF EXISTS "Admins can view vehicle tier mapping" ON vehicle_tier_mapping;
+    DROP POLICY IF EXISTS "Admins can insert vehicle tier mapping" ON vehicle_tier_mapping;
+    DROP POLICY IF EXISTS "Admins can update vehicle tier mapping" ON vehicle_tier_mapping;
+    DROP POLICY IF EXISTS "Admins can delete vehicle tier mapping" ON vehicle_tier_mapping;
     
     CREATE POLICY "Admins can view vehicle tier mapping"
     ON vehicle_tier_mapping
@@ -115,7 +119,7 @@ BEGIN
     CREATE POLICY "Admins can delete old access logs"
     ON vehicle_access_logs
     FOR DELETE
-    USING (auth.jwt() ->> 'role' = 'admin');
+    USING (public.has_role(auth.uid(), 'admin'));
 END $$;
 
 -- Enable RLS

@@ -37,10 +37,13 @@ hardcoded distances to accurate real-world routing is documented below.
 ### Implementation Files (Already Created ✅)
 
 ```
-src/modules/shuttle/lib/
-├── osrmRouting.ts              ✅ OSRM API integration with caching
-├── refinedFareCalculator.ts    ✅ Enhanced fare calculator using OSRM
-└── migrationHelper.ts          ✅ Gradual rollout helpers
+src/modules/shuttle/
+├── lib/
+│   ├── osrmRouting.ts              ✅ OSRM API integration with persistent caching & request queuing
+│   ├── refinedFareCalculator.ts    ✅ Enhanced fare calculator using OSRM with batch path optimization
+│   └── migrationHelper.ts          ✅ Gradual rollout & A/B audit helpers
+└── services/
+    └── routingSync.ts              ✅ Batch synchronization service for rayon routing data
 ```
 
 ---

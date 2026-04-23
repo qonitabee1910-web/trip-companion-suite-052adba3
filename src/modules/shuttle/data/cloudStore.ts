@@ -1350,13 +1350,16 @@ export async function logVehicleAccess(
     action,
     result,
     reason: reason ?? null,
-    user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
   };
 
-  // Only include ip_address if it's not null to avoid schema cache issues
-  // during migrations if the column was just added
+  // Only include ip_address and user_agent if they are available to avoid 
+  // schema cache issues during migrations if columns were just added
   if (ipAddress) {
     logEntry.ip_address = ipAddress;
+  }
+  
+  if (typeof navigator !== "undefined" && navigator.userAgent) {
+    logEntry.user_agent = navigator.userAgent;
   }
 
   const { error } = await supabase.from("vehicle_access_logs" as any).insert(logEntry);
@@ -1405,8 +1408,8 @@ export async function getVehicleAccessLogs(
     action: log.action,
     result: log.result,
     reason: log.reason,
-    ip_address: log.ip_address,
-    user_agent: log.user_agent,
+    ip_address: log.ip_address ?? null,
+    user_agent: log.user_agent ?? null,
     created_at: log.created_at,
   }));
 }

@@ -26,18 +26,26 @@ CREATE TABLE IF NOT EXISTS shuttle_activity_logs (
 ALTER TABLE shuttle_activity_logs ENABLE ROW LEVEL SECURITY;
 
 -- Admins can view activity logs
-CREATE POLICY "Admins can view shuttle activity logs"
-ON shuttle_activity_logs
-FOR SELECT
-TO authenticated
-USING (public.has_role(auth.uid(), 'admin'));
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Admins can view shuttle activity logs" ON shuttle_activity_logs;
+    CREATE POLICY "Admins can view shuttle activity logs"
+    ON shuttle_activity_logs
+    FOR SELECT
+    TO authenticated
+    USING (public.has_role(auth.uid(), 'admin'));
+END $$;
 
 -- Admins can insert activity logs
-CREATE POLICY "Admins can insert shuttle activity logs"
-ON shuttle_activity_logs
-FOR INSERT
-TO authenticated
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS "Admins can insert shuttle activity logs" ON shuttle_activity_logs;
+    CREATE POLICY "Admins can insert shuttle activity logs"
+    ON shuttle_activity_logs
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (public.has_role(auth.uid(), 'admin'));
+END $$;
 
 -- System (service role) can insert logs
 CREATE POLICY "System can log shuttle activity"
