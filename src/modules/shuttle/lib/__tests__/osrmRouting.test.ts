@@ -12,33 +12,51 @@ describe("osrmRouting", () => {
   beforeAll(() => {
     clearRouteCache();
     // Proper mock for fetch
-    vi.stubGlobal("fetch", vi.fn(async (urlStr: string) => {
-      const url = new URL(urlStr);
-      if (url.pathname.includes("/route/v1/driving")) {
-        return {
-          ok: true,
-          json: async () => ({
-            code: "Ok",
-            routes: [{ distance: 1000, duration: 60 }],
-          }),
-        };
-      }
-      if (url.pathname.includes("/table/v1/driving")) {
-        const coords = url.searchParams.get("coordinates")?.split(";") || [];
-        const n = coords.length;
-        const distances = Array(n).fill(0).map((_, i) => 
-          Array(n).fill(0).map((_, j) => (i === j ? 0 : 1000))
-        );
-        return {
-          ok: true,
-          json: async () => ({
-            code: "Ok",
-            distances,
-          }),
-        };
-      }
-      return { ok: false, statusText: "Not Found" };
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (urlStr: string) => {
+        const url = new URL(urlStr);
+        if (url.pathname.includes("/route/v1/driving")) {
+          return {
+            ok: true,
+            json: async () => ({
+              code: "Ok",
+              routes: [{ distance: 1000, duration: 60 }],
+            }),
+          };
+        }
+        if (url.pathname.includes("/table/v1/driving")) {
+          // Extract coordinates from pathname: /table/v1/driving/{lng},{lat};{lng},{lat}...
+          const pathMatch = url.pathname.match(/\/table\/v1\/driving\/(.+)$/);
+          const coordsStr = pathMatch ? pathMatch[1] : "";
+          const coordPairs = coordsStr.split(";").filter(Boolean);
+          const n = coordPairs.length;
+          const distances = Array(n)
+            .fill(0)
+            .map((_, i) =>
+              Array(n)
+                .fill(0)
+                .map((_, j) => (i === j ? 0 : 1000)),
+            );
+          const durations = Array(n)
+            .fill(0)
+            .map((_, i) =>
+              Array(n)
+                .fill(0)
+                .map((_, j) => (i === j ? 0 : 90)),
+            );
+          return {
+            ok: true,
+            json: async () => ({
+              code: "Ok",
+              distances,
+              durations,
+            }),
+          };
+        }
+        return { ok: false, statusText: "Not Found" };
+      }),
+    );
   });
 
   afterAll(() => {
@@ -102,11 +120,11 @@ describe("osrmRouting", () => {
       const matrix = await getRouteMatrix(coordinates);
 
       expect(matrix).toBeDefined();
-      expect(matrix).toHaveLength(3);
-      expect(matrix[0]).toHaveLength(3);
-      expect(matrix[0][0]).toBe(0); // Same point = 0 distance
-      expect(matrix[0][1]).toBeGreaterThan(0); // Different points = >0
-      expect(matrix[1][0]).toBeGreaterThan(0);
+      expect(matrix.distances).toHaveLength(3);
+      expect(matrix.distances[0]).toHaveLength(3);
+      expect(matrix.distances[0][0]).toBe(0); // Same point = 0 distance
+      expect(matrix.distances[0][1]).toBeGreaterThan(0); // Different points = >0
+      expect(matrix.distances[1][0]).toBeGreaterThan(0);
     });
 
     it("should be symmetric (distance A→B = distance B→A)", async () => {
@@ -118,7 +136,9 @@ describe("osrmRouting", () => {
       const matrix = await getRouteMatrix(coordinates);
 
       // In OSRM, driving distance is typically symmetric
-      expect(Math.abs(matrix[0][1] - matrix[1][0])).toBeLessThan(100); // Allow 100m variation
+      expect(
+        Math.abs(matrix.distances[0][1] - matrix.distances[1][0]),
+      ).toBeLessThan(100); // Allow 100m variation
     });
 
     it("should handle single coordinate", async () => {
@@ -126,9 +146,9 @@ describe("osrmRouting", () => {
 
       const matrix = await getRouteMatrix(coordinates);
 
-      expect(matrix).toHaveLength(1);
-      expect(matrix[0]).toHaveLength(1);
-      expect(matrix[0][0]).toBe(0);
+      expect(matrix.distances).toHaveLength(1);
+      expect(matrix.distances[0]).toHaveLength(1);
+      expect(matrix.distances[0][0]).toBe(0);
     });
   });
 

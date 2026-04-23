@@ -12,6 +12,7 @@
 import {
   getRouteDistance,
   getRouteMatrix,
+  getRoutingBetweenPoints,
   getSimpleDistance,
   type OSRMRoute,
 } from "./osrmRouting";
@@ -98,8 +99,9 @@ export async function getAccurateDistance(
       };
     } catch (error) {
       // Log as info/warn since we have fallbacks
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       console.warn(
-        `OSRM point-to-point routing unavailable, using fallback: ${error instanceof Error ? error.message : "Timeout"}`,
+        `OSRM point-to-point routing unavailable, using fallback: ${errorMsg}`,
       );
       // Fallback ke legacy if available
       if (fromPoint.distanceToNext && fromPoint.distanceToNext > 0) {
@@ -136,9 +138,7 @@ export async function getAccurateDistance(
  * Calculate total distance untuk rayon dengan akurat
  * Menggunakan OSRM matrix query untuk efficiency
  */
-export async function calculateRayonDistance(
-  rayon: RefinedRayon,
-): Promise<{
+export async function calculateRayonDistance(rayon: RefinedRayon): Promise<{
   totalDistanceM: number;
   estimatedMinutes: number;
   pointsWithDistance: RefinedPickupPoint[];
@@ -221,8 +221,9 @@ export async function calculateRayonDistance(
       source: matrixResult.source,
     };
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
     console.warn(
-      `OSRM matrix routing unavailable, using fallback: ${error instanceof Error ? error.message : "Timeout"}`,
+      `OSRM matrix routing unavailable, using fallback: ${errorMsg}`,
     );
 
     // Fallback ke stored values (Legacy method)
@@ -246,7 +247,11 @@ export async function calculateRayonDistance(
 export async function getRemainingDistance(
   rayon: RefinedRayon,
   fromCode: string,
-): Promise<{ distanceM: number; durationS: number; source: "osrm" | "cached" | "fallback" }> {
+): Promise<{
+  distanceM: number;
+  durationS: number;
+  source: "osrm" | "cached" | "fallback";
+}> {
   const points = rayon.pickupPoints || [];
   const fromIdx = points.findIndex((p) => p.code === fromCode);
 
@@ -260,26 +265,41 @@ export async function getRemainingDistance(
     };
   }
 
-  // Sum distances dari pickup point sampai akhir
-  let totalDistance = 0;
-  let totalDuration = 0;
-  let source: "osrm" | "cached" | "fallback" = "cached"; // start with optimistic cached
-
-  for (let i = fromIdx; i < points.length - 1; i++) {
-    const accurateDistance = await getAccurateDistance(
-      points[i],
-      points[i + 1],
-      true,
-    );
-    totalDistance += accurateDistance.distanceM;
-    totalDuration += accurateDistance.durationS;
-    
-    // If any segment falls back, the whole thing is degraded
-    if (accurateDistance.source === "fallback") source = "fallback";
-    else if (accurateDistance.source === "osrm" && source !== "fallback") source = "osrm";
+  // Get all points from start to end for a single routing request
+  const waypoints = points.slice(fromIdx).filter(p => p.lat !== undefined && p.lng !== undefined) as Array<{lat: number, lng: number}>;
+  
+  if (waypoints.length < 2) {
+    return {
+      distanceM: points[fromIdx]?.distanceToNext || 0,
+      durationS: (points[fromIdx]?.distanceToNext || 0) / 11.1,
+      source: "fallback"
+    };
   }
 
-  return { distanceM: totalDistance, durationS: totalDuration, source };
+  try {
+    const route = await getRoutingBetweenPoints(waypoints);
+    
+    if (!route) {
+      throw new Error("OSRM routing returned null");
+    }
+
+    return {
+      distanceM: route.totalDistance,
+      durationS: route.totalDuration,
+      source: route.source as any
+    };
+  } catch (error) {
+    // Fallback to sum of distanceToNext
+    let totalDistance = 0;
+    for (let i = fromIdx; i < points.length - 1; i++) {
+      totalDistance += points[i].distanceToNext || 0;
+    }
+    return {
+      distanceM: totalDistance,
+      durationS: totalDistance / 11.1,
+      source: "fallback"
+    };
+  }
 }
 
 /**

@@ -1343,16 +1343,23 @@ export async function logVehicleAccess(
     // Silently fail IP detection
   }
 
-  const { error } = await supabase.from("vehicle_access_logs" as any).insert({
+  const logEntry: any = {
     user_id: user?.id ?? null,
     vehicle_id: vehicleId,
     tier,
     action,
     result,
     reason: reason ?? null,
-    ip_address: ipAddress,
     user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
-  });
+  };
+
+  // Only include ip_address if it's not null to avoid schema cache issues
+  // during migrations if the column was just added
+  if (ipAddress) {
+    logEntry.ip_address = ipAddress;
+  }
+
+  const { error } = await supabase.from("vehicle_access_logs" as any).insert(logEntry);
 
   if (error) {
     console.warn("[cloudStore] logVehicleAccess failed:", error);

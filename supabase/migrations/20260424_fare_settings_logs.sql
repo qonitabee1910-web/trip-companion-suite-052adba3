@@ -29,7 +29,15 @@ ALTER TABLE shuttle_activity_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins can view shuttle activity logs"
 ON shuttle_activity_logs
 FOR SELECT
-USING (auth.jwt() ->> 'role' = 'admin');
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
+-- Admins can insert activity logs
+CREATE POLICY "Admins can insert shuttle activity logs"
+ON shuttle_activity_logs
+FOR INSERT
+TO authenticated
+WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
 -- System (service role) can insert logs
 CREATE POLICY "System can log shuttle activity"

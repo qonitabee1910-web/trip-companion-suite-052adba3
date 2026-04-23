@@ -37,6 +37,14 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicle_access_logs' AND column_name='created_at') THEN
         ALTER TABLE vehicle_access_logs ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicle_access_logs' AND column_name='ip_address') THEN
+        ALTER TABLE vehicle_access_logs ADD COLUMN ip_address INET;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicle_access_logs' AND column_name='user_agent') THEN
+        ALTER TABLE vehicle_access_logs ADD COLUMN user_agent TEXT;
+    END IF;
 END $$;
 
 -- Create indexes for efficient querying
@@ -48,14 +56,35 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_user ON vehicle_access_logs(u
 CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_created_at ON vehicle_access_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_vehicle_access_logs_result ON vehicle_access_logs(result);
 
--- RLS: Admins can read/write vehicle_tier_mapping
+-- RLS: Admins can manage vehicle_tier_mapping
 DO $$ 
 BEGIN
     DROP POLICY IF EXISTS "Admins can manage vehicle tier mapping" ON vehicle_tier_mapping;
-    CREATE POLICY "Admins can manage vehicle tier mapping"
+    
+    CREATE POLICY "Admins can view vehicle tier mapping"
     ON vehicle_tier_mapping
-    USING (auth.jwt() ->> 'role' = 'admin')
-    WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+    FOR SELECT
+    TO authenticated
+    USING (public.has_role(auth.uid(), 'admin'));
+
+    CREATE POLICY "Admins can insert vehicle tier mapping"
+    ON vehicle_tier_mapping
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+    CREATE POLICY "Admins can update vehicle tier mapping"
+    ON vehicle_tier_mapping
+    FOR UPDATE
+    TO authenticated
+    USING (public.has_role(auth.uid(), 'admin'))
+    WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+    CREATE POLICY "Admins can delete vehicle tier mapping"
+    ON vehicle_tier_mapping
+    FOR DELETE
+    TO authenticated
+    USING (public.has_role(auth.uid(), 'admin'));
 END $$;
 
 -- RLS: Admins can read access logs
@@ -65,7 +94,8 @@ BEGIN
     CREATE POLICY "Admins can view vehicle access logs"
     ON vehicle_access_logs
     FOR SELECT
-    USING (auth.jwt() ->> 'role' = 'admin');
+    TO authenticated
+    USING (public.has_role(auth.uid(), 'admin'));
 END $$;
 
 -- RLS: System (service role) can insert logs

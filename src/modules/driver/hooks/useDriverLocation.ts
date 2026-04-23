@@ -7,9 +7,17 @@ interface Options {
   fast?: boolean; // 3s vs 5s
 }
 
-export function useDriverLocation({ driverId, enabled, fast = false }: Options) {
+export function useDriverLocation({
+  driverId,
+  enabled,
+  fast = false,
+}: Options) {
   const lastSentRef = useRef<number>(0);
-  const lastPosRef = useRef<{ lat: number; lng: number; heading?: number } | null>(null);
+  const lastPosRef = useRef<{
+    lat: number;
+    lng: number;
+    heading?: number;
+  } | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
 
@@ -27,7 +35,17 @@ export function useDriverLocation({ driverId, enabled, fast = false }: Options) 
         heading: p.coords.heading ?? undefined,
       };
     };
-    const onErr = (e: GeolocationPositionError) => console.warn("[geo] error", e.message);
+    const onErr = (e: GeolocationPositionError) => {
+      const errorMessages: Record<number, string> = {
+        1: "Permission denied - user did not grant location permission",
+        2: "Position unavailable - network error or service disabled",
+        3: "Request timed out - took too long to get position",
+      };
+      console.warn(
+        "[useDriverLocation] Geolocation error:",
+        errorMessages[e.code] || `Unknown error (${e.code})`,
+      );
+    };
 
     watchIdRef.current = navigator.geolocation.watchPosition(onPos, onErr, {
       enableHighAccuracy: true,
@@ -45,7 +63,11 @@ export function useDriverLocation({ driverId, enabled, fast = false }: Options) 
 
       await supabase
         .from("drivers")
-        .update({ current_lat: pos.lat, current_lng: pos.lng, updated_at: new Date().toISOString() })
+        .update({
+          current_lat: pos.lat,
+          current_lng: pos.lng,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", driverId);
 
       await supabase.from("driver_locations").insert({
@@ -57,8 +79,10 @@ export function useDriverLocation({ driverId, enabled, fast = false }: Options) 
     }, 1000);
 
     return () => {
-      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
-      if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
+      if (watchIdRef.current !== null)
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      if (intervalRef.current !== null)
+        window.clearInterval(intervalRef.current);
     };
   }, [driverId, enabled, fast]);
 

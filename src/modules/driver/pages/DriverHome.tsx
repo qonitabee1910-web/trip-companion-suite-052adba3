@@ -81,7 +81,18 @@ const DriverHome = () => {
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (p) => setPos({ lat: p.coords.latitude, lng: p.coords.longitude }),
-          () => {},
+          (error) => {
+            // Log geolocation errors but don't stop the app
+            const errorMessages: Record<number, string> = {
+              1: "Location permission denied",
+              2: "Position unavailable",
+              3: "Request timed out",
+            };
+            console.warn(
+              "[DriverHome] Geolocation error:",
+              errorMessages[error.code] || `Unknown error (${error.code})`,
+            );
+          },
           { maximumAge: 4000, timeout: 5000 },
         );
       }
