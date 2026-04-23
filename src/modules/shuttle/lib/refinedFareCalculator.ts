@@ -19,8 +19,10 @@ import type {
   VehicleType,
   ServiceConfig,
   FareBreakdown,
+  FareSettings,
 } from "../data/services";
 import type { Rayon, PickupPoint } from "../data/rayons";
+import { getFareSettingsStored } from "../data/repository";
 
 export interface RefinedPickupPoint extends PickupPoint {
   routingDistance?: number; // meters from OSRM
@@ -275,9 +277,6 @@ export async function getRemainingDistance(
   return { distanceM: totalDistance, durationS: totalDuration, source };
 }
 
-const MINIMUM_FARE = 50000; // Minimum fare in Rp
-const MAXIMUM_DISTANCE_KM = 500; // Maximum distance allowed for shuttle
-
 /**
  * Enhanced fare calculation dengan OSRM distances
  */
@@ -288,6 +287,10 @@ export async function calcEnhancedFareBreakdown(
   pickupCode?: string,
   useOSRM: boolean = true,
 ): Promise<EnhancedFareBreakdown> {
+  const settings = getFareSettingsStored();
+  const MINIMUM_FARE = settings.minFare;
+  const MAXIMUM_DISTANCE_KM = settings.maxDistanceKm;
+
   if (!rayon) {
     return {
       basePrice: 0,
@@ -340,18 +343,56 @@ export async function calcEnhancedFareBreakdown(
   let distanceKm = distanceM / 1000;
   let isMaxDistanceExceeded = false;
   if (distanceKm > MAXIMUM_DISTANCE_KM) {
-    console.warn(`Distance ${distanceKm}km exceeds maximum ${MAXIMUM_DISTANCE_KM}km. Capping at maximum.`);
+    console.warn(
+      `Distance ${distanceKm}km exceeds maximum ${MAXIMUM_DISTANCE_KM}km. Capping at maximum.`,
+    );
     distanceKm = MAXIMUM_DISTANCE_KM;
     isMaxDistanceExceeded = true;
   }
 
-  const distanceFare = distanceKm * farePerKm;
+  let distanceFare = 0;
   const surcharge = rayon.surcharge ?? 0;
   const basePrice = vehicle
     ? (vehicle.tierPrices?.[service.tier] ?? vehicle.basePrice ?? 0)
     : 0;
-  
-  let calculatedTotal = Math.round((basePrice + distanceFare + surcharge) / 1000) * 1000;
+
+  // Implement flexible calculation methods
+  switch (settings.calculationMethod) {
+    case "tier_based":
+      // Method 1: Only use base price from vehicle tier prices (Fixed per tier)
+      distanceFare = 0;
+      break;
+    case "fixed":
+      // Method 2: Fixed price (example: 100k for all)
+      distanceFare = 0;
+      return {
+        basePrice: 0,
+        distanceM,
+        distanceKm,
+        farePerKm,
+        distanceFare: 0,
+        surcharge: 0,
+        total: 100000,
+        estimatedDurationMin: Math.round(durationS / 60),
+        routingSource,
+        auditTrail: {
+          basePrice: 0,
+          distanceKm,
+          farePerKm,
+          surcharge: 0,
+          isMinimumFareApplied: false,
+          isMaxDistanceExceeded,
+        },
+      };
+    case "distance_based":
+    default:
+      // Method 3: Formula (distanceKm * farePerKm) + basePrice + surcharge
+      distanceFare = distanceKm * farePerKm;
+      break;
+  }
+
+  let calculatedTotal =
+    Math.round((basePrice + distanceFare + surcharge) / 1000) * 1000;
   let isMinimumFareApplied = false;
 
   if (calculatedTotal < MINIMUM_FARE) {

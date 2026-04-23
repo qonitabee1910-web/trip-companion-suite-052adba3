@@ -22,6 +22,9 @@ import {
   logVehicleAccess,
   getVehicleAccessLogs,
   purgeOldAccessLogs,
+  persistFareSettings,
+  logShuttleActivity,
+  getShuttleActivityLogs,
 } from "./cloudStore";
 import { type Rayon, type Destination, type ShuttleContent } from "./rayons";
 import {
@@ -31,6 +34,8 @@ import {
   type VehicleTypeId,
   type VehicleTierMapping,
   type VehicleAccessLog,
+  type FareSettings,
+  type ShuttleActivityLog,
 } from "./services";
 import type { ShuttleBooking, BookingStatus } from "../types/booking";
 
@@ -213,6 +218,42 @@ export async function saveContent(c: ShuttleContent): Promise<SaveResult> {
     notifyStore();
   }
   return res;
+}
+
+// ---------- Fare Settings ----------
+export function getFareSettingsStored(): FareSettings {
+  return cloudCache.fareSettings;
+}
+
+export async function saveFareSettings(
+  settings: FareSettings,
+): Promise<SaveResult> {
+  const previous = cloudCache.fareSettings;
+
+  // Log activity if enabled
+  if (settings.enableLogging) {
+    void logShuttleActivity("update_fare_settings", {
+      before: previous,
+      after: settings,
+    });
+  }
+
+  cloudCache.fareSettings = settings;
+  notifyStore();
+
+  const res = await persistFareSettings(settings);
+  if (!res.ok) {
+    cloudCache.fareSettings = previous;
+    notifyStore();
+  }
+  return res;
+}
+
+export async function getActivityLogs(
+  limit: number = 50,
+  offset: number = 0,
+): Promise<ShuttleActivityLog[]> {
+  return getShuttleActivityLogs(limit, offset);
 }
 
 // ---------- Reset (re-seed defaults locally + push) ----------

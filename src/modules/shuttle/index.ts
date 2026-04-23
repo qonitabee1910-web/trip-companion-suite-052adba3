@@ -102,6 +102,16 @@ const shuttleModule: AppModule = {
       },
     },
     {
+      path: "/admin/shuttle/fare",
+      element: lazyEl(() => import("@/modules/admin/pages/AdminFareSettings")),
+      sidebar: {
+        label: "Tarif & Formula",
+        icon: TrendingUp,
+        group: "Setup Layanan",
+        order: 25,
+      },
+    },
+    {
       path: "/admin/shuttle/vehicles",
       element: lazyEl(() => import("@/modules/admin/pages/AdminVehicles")),
       sidebar: {

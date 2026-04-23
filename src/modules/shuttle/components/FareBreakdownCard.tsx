@@ -113,10 +113,15 @@ export const FareBreakdownCard = ({
         <span>Rincian tarif</span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">
-          Jarak {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × {fmt(breakdown.farePerKm)} ({service.label})
-        </span>
-        <span>{fmt(breakdown.distanceFare)}</span>
+        <div className="text-muted-foreground flex flex-col">
+          <span>
+            Jarak {breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km
+          </span>
+          <span className="text-[10px] italic">
+            ({breakdown.distanceKm.toLocaleString("id-ID", { maximumFractionDigits: 1 })} km × {fmt(breakdown.farePerKm)}/km)
+          </span>
+        </div>
+        <span className="self-center">{fmt(breakdown.distanceFare)}</span>
       </div>
       {vehicle && breakdown.basePrice > 0 && (
         <div className="flex justify-between">

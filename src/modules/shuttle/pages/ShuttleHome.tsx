@@ -1,12 +1,14 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ResponsiveLayout } from "@/shared/components/ResponsiveLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plane, MapPin, ArrowRight, Ticket, User } from "lucide-react";
+import { Plane, MapPin, ArrowRight, Ticket, User, TrendingUp } from "lucide-react";
 import { getRayons, getDestinationStored, getContentStored } from "../data/repository";
 import { useAuth } from "@/shared/auth/useAuth";
+import { getRayonStartingPrice } from "../lib/migrationHelper";
 
 const rayonAccent: Record<string, string> = {
   A: "from-primary/15 to-primary/5 border-primary/30 text-primary",
@@ -21,6 +23,20 @@ const ShuttleHome = () => {
   const RAYONS = getRayons();
   const DESTINATION = getDestinationStored();
   const content = getContentStored();
+  
+  const [startingPrices, setStartingPrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // Load starting prices for each rayon
+    RAYONS.forEach(async (r) => {
+      try {
+        const price = await getRayonStartingPrice(r);
+        setStartingPrices(prev => ({ ...prev, [r.id]: price }));
+      } catch (e) {
+        console.warn(`Could not load starting price for rayon ${r.id}`, e);
+      }
+    });
+  }, [RAYONS]);
 
   const goProfile = () => navigate(user ? "/shuttle/profile" : "/auth?from=%2Fshuttle%2Fprofile");
 
@@ -99,6 +115,16 @@ const ShuttleHome = () => {
               </div>
               <p className="font-bold text-foreground text-sm">{r.name}</p>
               <p className="text-xs text-muted-foreground">{r.area}</p>
+              
+              {startingPrices[r.id] && (
+                <div className="mt-2 py-1 px-2 rounded-lg bg-white/50 border border-white/20 w-fit">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Mulai dari</p>
+                  <p className="text-sm font-black text-accent">
+                    Rp{startingPrices[r.id].toLocaleString("id-ID")}
+                  </p>
+                </div>
+              )}
+
               <div className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground">
                 <MapPin className="h-3 w-3" />
                 {r.pickupPoints.length} titik jemput

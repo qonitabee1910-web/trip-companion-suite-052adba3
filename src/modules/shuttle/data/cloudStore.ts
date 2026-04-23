@@ -53,6 +53,8 @@ interface Cache {
   paymentSettings?: import("./payment").PaymentSettings;
   /** Vehicle × Tier access mapping: deklaratif tier-based vehicle access control. */
   vehicleTierMappings: VehicleTierMapping[];
+  /** Fare calculation settings. */
+  fareSettings: import("./services").FareSettings;
   hydrated: boolean;
 }
 
@@ -79,6 +81,12 @@ const cache: Cache = {
   seatLayouts: {},
   seatLayoutTimestamps: {},
   vehicleTierMappings: [],
+  fareSettings: {
+    calculationMethod: "distance_based",
+    minFare: 50000,
+    maxDistanceKm: 500,
+    enableLogging: true,
+  },
   hydrated: false,
 };
 
@@ -232,12 +240,18 @@ async function hydrate() {
       const dest = settingsRes.data.find((s) => s.key === "destination");
       const cnt = settingsRes.data.find((s) => s.key === "content");
       const pay = settingsRes.data.find((s) => s.key === "payment_gateway");
+      const fare = settingsRes.data.find((s) => s.key === "fare_settings");
       if (dest)
         cache.destination = {
           ...DEFAULT_DESTINATION,
           ...(dest.value as object),
         };
       if (cnt) cache.content = { ...DEFAULT_CONTENT, ...(cnt.value as object) };
+      if (fare)
+        cache.fareSettings = {
+          ...cache.fareSettings,
+          ...(fare.value as object),
+        };
       if (pay) {
         const { DEFAULT_PAYMENT_SETTINGS } = await import("./payment");
         cache.paymentSettings = {
@@ -1214,6 +1228,92 @@ export async function persistVehicleTierMappings(
   cache.vehicleTierMappings = mappings;
   notify();
   return { ok: true };
+}
+
+// ============== Fare Settings & Activity Logging ==============
+
+/**
+ * Persist fare settings from admin.
+ * Updates calculation method, min fare, and max distance.
+ */
+export async function persistFareSettings(
+  settings: import("./services").FareSettings,
+): Promise<SaveResult> {
+  const { error } = await supabase.from("shuttle_settings").upsert({
+    key: "fare_settings",
+    value: settings as any,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("[cloudStore] persistFareSettings failed:", error);
+    return {
+      ok: false,
+      error: { code: error.code, message: error.message },
+    };
+  }
+
+  cache.fareSettings = settings;
+  notify();
+  return { ok: true };
+}
+
+/**
+ * Log an admin activity (settings change, price update, etc).
+ * Fire-and-forget: logs asynchronously.
+ */
+export async function logShuttleActivity(
+  action: string,
+  details: any,
+): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let ipAddress: string | null = null;
+  // Basic user agent detection
+  const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : null;
+
+  const { error } = await supabase.from("shuttle_activity_logs" as any).insert({
+    user_id: user?.id ?? null,
+    action,
+    details,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+  });
+
+  if (error) {
+    console.warn("[cloudStore] logShuttleActivity failed:", error);
+  }
+}
+
+/**
+ * Get activity logs for admin dashboard.
+ */
+export async function getShuttleActivityLogs(
+  limit: number = 50,
+  offset: number = 0,
+): Promise<import("./services").ShuttleActivityLog[]> {
+  const { data, error } = await supabase
+    .from("shuttle_activity_logs" as any)
+    .select("*")
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error("[cloudStore] getShuttleActivityLogs failed:", error);
+    return [];
+  }
+
+  return (data || []).map((log: any) => ({
+    id: log.id,
+    user_id: log.user_id,
+    action: log.action,
+    details: log.details,
+    ip_address: log.ip_address,
+    user_agent: log.user_agent,
+    created_at: log.created_at,
+  }));
 }
 
 // ============== Vehicle Access Logging ==============

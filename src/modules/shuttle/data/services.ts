@@ -76,6 +76,30 @@ export interface VehicleAccessLog {
   created_at: string;
 }
 
+/**
+ * FareSettings — Configuration for shuttle fare calculations.
+ * Managed by admin to switch between calculation methods.
+ */
+export interface FareSettings {
+  calculationMethod: "distance_based" | "fixed" | "tier_based";
+  minFare: number;
+  maxDistanceKm: number;
+  enableLogging: boolean;
+}
+
+/**
+ * ShuttleActivityLog — Audit trail for admin changes (settings, prices, etc).
+ */
+export interface ShuttleActivityLog {
+  id: string;
+  user_id: string | null;
+  action: string;
+  details: any;
+  ip_address?: string;
+  user_agent?: string;
+  created_at: string;
+}
+
 export const SERVICES: ServiceConfig[] = [
   {
     tier: "reguler",

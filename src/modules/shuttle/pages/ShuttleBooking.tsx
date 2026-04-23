@@ -425,7 +425,7 @@ const ShuttleBooking = () => {
             </div>
 
             {/* Fare breakdown */}
-            <div className="mt-3 pt-3 border-t">
+            <div className="mt-3 pt-3 border-t space-y-3">
               <FareBreakdownCard
                 vehicle={vehicle}
                 service={service}
@@ -433,6 +433,18 @@ const ShuttleBooking = () => {
                 pickupCode={pickupCode}
                 pax={pax}
               />
+              
+              <div className="bg-accent/10 p-3 rounded-lg border border-accent/20">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold">Total Bayar</span>
+                  <span className="text-lg font-black text-accent">
+                    Rp{total.toLocaleString("id-ID")}
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Sudah termasuk biaya layanan & pajak.
+                </p>
+              </div>
             </div>
 
             <Button

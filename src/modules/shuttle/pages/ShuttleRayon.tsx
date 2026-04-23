@@ -10,11 +10,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { getRayon, getDestination, getContent, getTotalDistanceM, getShiftedSchedule } from "../data/rayons";
-import { getDepartTimes, getServicesAll } from "../data/repository";
-import { calculateRayonDistance } from "../lib/refinedFareCalculator";
+import { getDepartTimes, getServicesAll, getFareSettingsStored } from "../data/repository";
+import { calculateRayonDistance, calcEnhancedFareBreakdown } from "../lib/refinedFareCalculator";
 import { StepperHeader } from "@/shared/components/StepperHeader";
 import { RayonRouteMap } from "../components/RayonRouteMap";
-import { MapPin, Plane, Users, Minus, Plus, Clock, Calendar as CalendarIcon, Route } from "lucide-react";
+import { MapPin, Plane, Users, Minus, Plus, Clock, Calendar as CalendarIcon, Route, TrendingUp } from "lucide-react";
 
 const ShuttleRayon = () => {
   const { id = "A" } = useParams();
@@ -23,6 +23,7 @@ const ShuttleRayon = () => {
   const DEPART_TIMES = getDepartTimes();
   const DESTINATION = getDestination();
   const content = getContent();
+  const fareSettings = getFareSettingsStored();
   const activeServices = getServicesAll().filter((s) => s.active !== false);
   const pickupOptions = (rayon?.pickupPoints || []).filter((p) => p.code !== "DEST");
   const [pickup, setPickup] = useState(pickupOptions[0]?.code || "");
@@ -39,6 +40,9 @@ const ShuttleRayon = () => {
     durationMin: rayon?.estimateMin || 0,
   });
 
+  // NEW: Estimated price for selected pickup
+  const [estPrice, setEstPrice] = useState<number | null>(null);
+
   useEffect(() => {
     if (!rayon) return;
     calculateRayonDistance(rayon as any)
@@ -52,6 +56,17 @@ const ShuttleRayon = () => {
         console.warn("Could not calculate accurate rayon distance:", err);
       });
   }, [rayon]);
+
+  useEffect(() => {
+    if (!rayon || !pickup) return;
+    // Calculate estimate for the first active service
+    const svc = activeServices[0];
+    if (!svc) return;
+
+    calcEnhancedFareBreakdown(undefined, svc, rayon as any, pickup, true)
+      .then((bd) => setEstPrice(bd.total))
+      .catch((err) => console.warn("Could not calculate est price:", err));
+  }, [rayon, pickup, activeServices]);
 
   if (!rayon) {
     return (
@@ -235,12 +250,24 @@ const ShuttleRayon = () => {
           </div>
         </Card>
 
-        <Button
-          onClick={handleNext}
-          className="w-full h-12 bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
-        >
-          Lihat Pilihan Service
-        </Button>
+        <div className="flex flex-col gap-2">
+          {estPrice !== null && (
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" /> Est. Harga ({activeServices[0]?.label})
+              </span>
+              <span className="font-bold text-accent">
+                Rp{estPrice.toLocaleString("id-ID")}
+              </span>
+            </div>
+          )}
+          <Button
+            onClick={handleNext}
+            className="w-full h-12 bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
+          >
+            Lihat Pilihan Service
+          </Button>
+        </div>
       </div>
     </ResponsiveLayout>
   );

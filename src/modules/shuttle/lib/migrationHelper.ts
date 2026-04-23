@@ -12,8 +12,6 @@ import {
 } from "../data/services";
 import {
   getRayon,
-  getRemainingDistanceM,
-  getTotalDistanceM,
   type Rayon,
   type PickupPoint,
 } from "../data/rayons";
@@ -76,6 +74,34 @@ export async function calcPriceCompat(
   pickupCode?: string,
 ): Promise<number> {
   const bd = await calcFareBreakdownCompat(vehicle, service, rayon, pickupCode);
+  return bd.total;
+}
+
+/**
+ * Feature flag untuk A/B testing
+ * Compare OSRM vs hardcoded distances
+ */
+/**
+ * Get starting price for a rayon (minimum possible price)
+ */
+export async function getRayonStartingPrice(rayon: Rayon): Promise<number> {
+  const { getServicesAll } = await import("../data/repository");
+  const services = getServicesAll().filter((s: any) => s.active !== false);
+  if (services.length === 0) return 0;
+
+  // Use the cheapest service (usually reguler)
+  const service = services[0];
+
+  // Get distance from the last pickup point to DEST (usually shortest distance)
+  const lastPickup =
+    rayon.pickupPoints.find((p) => p.code !== "DEST")?.code || "";
+
+  const bd = await calcFareBreakdownCompat(
+    undefined,
+    service,
+    rayon,
+    lastPickup,
+  );
   return bd.total;
 }
 
@@ -158,7 +184,13 @@ export async function auditFareDifferences(
 > {
   const rayon = getRayon(rayonId);
   const vehicle = { id: vehicleId } as VehicleType; // Get from repository in real code
-  const service = { tier: serviceTier, priceMultiplier: 1 } as ServiceConfig;
+  const service = {
+    tier: serviceTier,
+    label: serviceTier,
+    description: "",
+    farePerKm: 1500,
+    features: [],
+  } as ServiceConfig;
 
   if (!rayon) return [];
 
