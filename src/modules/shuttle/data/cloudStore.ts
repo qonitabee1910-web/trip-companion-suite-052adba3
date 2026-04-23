@@ -150,7 +150,7 @@ async function hydrate() {
     ]);
 
     // Rayons + pickup_points join
-    if (rayonRes.data) {
+    if (rayonRes.data && rayonRes.data.length > 0) {
       const ppByRayon = new Map<string, PickupPoint[]>();
       (ppRes.data || []).forEach((p) => {
         const arr = ppByRayon.get(p.rayon_id) || [];
@@ -174,10 +174,13 @@ async function hydrate() {
         farePerKm: r.fare_per_km,
         perPickupFare: r.per_pickup_fare,
         pickupPoints: ppByRayon.get(r.id) || [],
+        active: r.active,
       }));
+    } else {
+      cache.rayons = DEFAULT_RAYONS;
     }
 
-    if (svcRes.data) {
+    if (svcRes.data && svcRes.data.length > 0) {
       cache.services = svcRes.data.map((s: any) => ({
         tier: s.tier as ServiceTier,
         label: s.label,
@@ -186,10 +189,12 @@ async function hydrate() {
         features: s.features || [],
         active: s.active,
       }));
+    } else {
+      cache.services = DEFAULT_SERVICES;
     }
 
     // Vehicles + seat_layouts (totalSeats from layout capacity)
-    if (vehRes.data) {
+    if (vehRes.data && vehRes.data.length > 0) {
       const layoutByVehTier = new Map<string, { capacity: number }>();
       (layoutRes.data || []).forEach((l) => {
         layoutByVehTier.set(`${l.vehicle_id}_${l.tier}`, {
@@ -211,6 +216,8 @@ async function hydrate() {
           totalSeats: reg?.capacity ?? 0,
         };
       });
+    } else {
+      cache.vehicles = DEFAULT_VEHICLES;
     }
 
     // Seat layouts: build map keyed by LayoutKey ("HIACE_REGULER" etc.)
@@ -232,11 +239,13 @@ async function hydrate() {
       cache.seatLayoutTimestamps = ts;
     }
 
-    if (timesRes.data) {
+    if (timesRes.data && timesRes.data.length > 0) {
       cache.departTimes = timesRes.data.map((t) => t.time);
+    } else {
+      cache.departTimes = DEFAULT_TIMES;
     }
 
-    if (settingsRes.data) {
+    if (settingsRes.data && settingsRes.data.length > 0) {
       const dest = settingsRes.data.find((s) => s.key === "destination");
       const cnt = settingsRes.data.find((s) => s.key === "content");
       const pay = settingsRes.data.find((s) => s.key === "payment_gateway");
@@ -259,6 +268,9 @@ async function hydrate() {
           ...(pay.value as object),
         };
       }
+    } else {
+      cache.destination = DEFAULT_DESTINATION;
+      cache.content = DEFAULT_CONTENT;
     }
 
     if (bookingsRes.data) {

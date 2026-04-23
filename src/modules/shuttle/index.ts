@@ -230,3 +230,10 @@ export {
   getCalculationLogs,
   type FareCalculationLog,
 } from "./lib/migrationHelper";
+
+export {
+  syncRayonRouting,
+  syncAllRayons,
+  getRayonSyncStatus,
+  type SyncResult,
+} from "./services/routingSync";
