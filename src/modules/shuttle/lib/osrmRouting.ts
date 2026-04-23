@@ -35,6 +35,31 @@ const routeCache = new Map<
   { distance: number; duration: number; timestamp: number }
 >();
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 hari
+const DEFAULT_TIMEOUT = 5000; // 5 seconds timeout for OSRM API
+
+/**
+ * Fetch helper with timeout
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeout = DEFAULT_TIMEOUT,
+) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
 
 /**
  * Generate cache key dari koordinat pair
@@ -88,7 +113,7 @@ export async function getRouteDistance(
     const url = new URL(`${OSRM_ENDPOINTS.public}/route/v1/driving/${coordStr}`);
     url.searchParams.set("overview", "false"); // Don't need geometry for now
 
-    const response = await fetch(url.toString());
+    const response = await fetchWithTimeout(url.toString());
     if (!response || !response.ok) {
       throw new Error(`OSRM API error: ${response?.statusText ?? "No response"}`);
     }
@@ -113,7 +138,11 @@ export async function getRouteDistance(
 
     return result;
   } catch (error) {
-    console.error("OSRM routing error:", error);
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn("OSRM routing request timed out");
+    } else {
+      console.warn("OSRM routing error (falling back):", error);
+    }
     // Rethrow to let caller handle legacy fallback
     throw error;
   }
@@ -143,7 +172,7 @@ export async function getRouteMatrix(
     const url = new URL(`${OSRM_ENDPOINTS.public}/table/v1/driving/${coordStr}`);
     url.searchParams.set("annotations", "distance,duration");
 
-    const response = await fetch(url.toString());
+    const response = await fetchWithTimeout(url.toString());
     if (!response || !response.ok) {
       throw new Error(
         `OSRM Matrix API error: ${response?.statusText ?? "No response"}`,
@@ -163,7 +192,11 @@ export async function getRouteMatrix(
 
     return { ...data, source: "osrm" };
   } catch (error) {
-    console.error("OSRM matrix error:", error);
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn("OSRM matrix request timed out");
+    } else {
+      console.warn("OSRM matrix error (falling back):", error);
+    }
     // Rethrow to let the caller handle fallback to legacy distances
     throw error;
   }

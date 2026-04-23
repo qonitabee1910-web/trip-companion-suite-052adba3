@@ -97,7 +97,10 @@ export async function getAccurateDistance(
         source: "osrm",
       };
     } catch (error) {
-      console.warn(`OSRM routing failed for point to point: ${error}`);
+      // Log as info/warn since we have fallbacks
+      console.warn(
+        `OSRM point-to-point routing unavailable, using fallback: ${error instanceof Error ? error.message : "Timeout"}`,
+      );
       // Fallback ke legacy if available
       if (fromPoint.distanceToNext && fromPoint.distanceToNext > 0) {
         return {
@@ -218,7 +221,9 @@ export async function calculateRayonDistance(
       source: matrixResult.source,
     };
   } catch (error) {
-    console.error("Failed to calculate rayon distance:", error);
+    console.warn(
+      `OSRM matrix routing unavailable, using fallback: ${error instanceof Error ? error.message : "Timeout"}`,
+    );
 
     // Fallback ke stored values (Legacy method)
     const totalDistanceM = points.reduce(
